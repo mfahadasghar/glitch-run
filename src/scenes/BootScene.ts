@@ -29,6 +29,8 @@ export class BootScene extends Phaser.Scene {
     this.createTeleportTexture();
     this.createGravityZoneTexture();
     this.createParticleTexture();
+    this.createSawbladeTexture();
+    this.createIceTexture();
 
     // Show loading complete and transition
     const title = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, 'JUNIE GLITCH RUN', {
@@ -318,5 +320,23 @@ export class BootScene extends Phaser.Scene {
     sparkleGraphics.fillRect(0, 2, 6, 2);
     sparkleGraphics.generateTexture('sparkle', 6, 6);
     sparkleGraphics.destroy();
+  }
+
+  private createSawbladeTexture(): void {
+    const graphics = this.make.graphics({ x: 0, y: 0 });
+    // Simple circular hitbox texture
+    graphics.fillStyle(0xff0000, 0.1);
+    graphics.fillCircle(16, 16, 16);
+    graphics.generateTexture('sawblade', 32, 32);
+    graphics.destroy();
+  }
+
+  private createIceTexture(): void {
+    const graphics = this.make.graphics({ x: 0, y: 0 });
+    // Simple rectangular hitbox texture for ice
+    graphics.fillStyle(0x88ddff, 0.1);
+    graphics.fillRect(0, 0, 32, 32);
+    graphics.generateTexture('ice', 32, 32);
+    graphics.destroy();
   }
 }
