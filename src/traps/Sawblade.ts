@@ -27,16 +27,16 @@ export class Sawblade extends Phaser.GameObjects.Container {
 
     scene.add.existing(this as unknown as Phaser.GameObjects.GameObject);
 
-    // Blade container for rotation
-    this.blade = scene.add.container(0, 0);
+    // Blade container for rotation (created without adding to scene)
+    this.blade = new Phaser.GameObjects.Container(scene, 0, 0);
 
     // Outer circle
-    const outer = scene.add.circle(0, 0, this.radius, 0x888888);
+    const outer = new Phaser.GameObjects.Arc(scene, 0, 0, this.radius, 0, 360, false, 0x888888);
     outer.setStrokeStyle(2, 0x666666);
     this.blade.add(outer);
 
     // Inner circle
-    const inner = scene.add.circle(0, 0, this.radius * 0.3, 0x444444);
+    const inner = new Phaser.GameObjects.Arc(scene, 0, 0, this.radius * 0.3, 0, 360, false, 0x444444);
     this.blade.add(inner);
 
     // Teeth (8 triangular teeth)
@@ -46,7 +46,8 @@ export class Sawblade extends Phaser.GameObjects.Container {
       const toothX = Math.cos(angle) * this.radius;
       const toothY = Math.sin(angle) * this.radius;
 
-      const tooth = scene.add.triangle(
+      const tooth = new Phaser.GameObjects.Triangle(
+        scene,
         toothX,
         toothY,
         0, -6,
