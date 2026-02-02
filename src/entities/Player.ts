@@ -320,10 +320,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!this.isDashing) {
       // Horizontal movement
       if (this.onIce && onGround) {
-        // Ice physics: reduced control, maintain momentum
-        const iceAcceleration = 15;
+        // Ice physics: reduced control, maintain momentum, 2x max speed
+        const iceAcceleration = 20;
         const iceDeceleration = 0.98; // Slow decay when no input
-        const maxIceSpeed = 400;
+        const maxIceSpeed = PLAYER_CONFIG.moveSpeed * 2;
 
         if (this.cursors.left.isDown) {
           this.iceVelocity -= iceAcceleration;

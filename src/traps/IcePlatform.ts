@@ -52,32 +52,36 @@ export class IcePlatform extends Phaser.GameObjects.Container {
 
   isPlayerOnPlatform(player: Phaser.Physics.Arcade.Sprite): boolean {
     const playerBody = player.body as Phaser.Physics.Arcade.Body;
+    const hitboxBody = this.hitbox.body as Phaser.Physics.Arcade.Body;
 
-    // Check if player is blocked below (standing on something)
-    if (!playerBody.blocked.down && !playerBody.touching.down) {
+    if (!playerBody || !hitboxBody) return false;
+
+    // Player must not be jumping up through the platform
+    if (playerBody.velocity.y < -50) {
       return false;
     }
 
-    // Check horizontal overlap with platform
-    const platformLeft = this.x - this.platformWidth / 2;
-    const platformRight = this.x + this.platformWidth / 2;
-    const playerLeft = player.x - playerBody.width / 2;
-    const playerRight = player.x + playerBody.width / 2;
+    // Calculate bounds directly from body properties
+    const playerLeft = playerBody.x;
+    const playerRight = playerBody.x + playerBody.width;
+    const playerBottom = playerBody.y + playerBody.height;
 
-    const horizontalOverlap = playerRight > platformLeft && playerLeft < platformRight;
-    if (!horizontalOverlap) {
-      return false;
-    }
+    const hitboxLeft = hitboxBody.x;
+    const hitboxRight = hitboxBody.x + hitboxBody.width;
+    const hitboxTop = hitboxBody.y;
 
-    // Check if player's feet are near the platform top
-    // Platform top is at this.y - TILE_SIZE / 2
-    // Player bottom is at player.y + playerBody.halfHeight
-    const platformTop = this.y - TILE_SIZE / 2;
-    const playerBottom = player.y + playerBody.halfHeight;
-    const verticalDistance = Math.abs(playerBottom - platformTop);
+    // Check horizontal overlap
+    const horizontalOverlap = playerRight > hitboxLeft && playerLeft < hitboxRight;
 
-    // Allow generous margin for detection
-    return verticalDistance < 20;
+    if (!horizontalOverlap) return false;
+
+    // Check if player's bottom is near the platform's top
+    const verticalDistance = playerBottom - hitboxTop;
+
+    // Player must be on top of platform:
+    // - Small negative distance: player feet slightly above platform (approaching)
+    // - Small positive distance: player feet slightly inside platform (standing)
+    return verticalDistance >= -5 && verticalDistance <= 20;
   }
 
   getHitbox(): Phaser.Physics.Arcade.Sprite {
