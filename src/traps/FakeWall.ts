@@ -30,6 +30,9 @@ export class FakeWall extends BaseTrap {
   }
 
   reset(): void {
+    // Kill any active tweens
+    this.trapScene.tweens.killTweensOf(this.wall);
+
     this.revealed = false;
     this.wall.setAlpha(1);
   }

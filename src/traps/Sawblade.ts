@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { TILE_SIZE, SIZE, sz } from '../config/gameConfig';
 
 export interface SawbladeConfig {
   x: number;
@@ -23,48 +24,54 @@ export class Sawblade extends Phaser.GameObjects.Container {
     this.gameScene = scene;
     this.pathPoints = config.pathPoints;
     this.speed = config.speed || 100;
-    this.radius = config.radius || 16;
+    this.radius = config.radius || TILE_SIZE * 0.4;
 
     scene.add.existing(this as unknown as Phaser.GameObjects.GameObject);
 
     // Blade container for rotation (created without adding to scene)
     this.blade = new Phaser.GameObjects.Container(scene, 0, 0);
 
-    // Outer circle
-    const outer = new Phaser.GameObjects.Arc(scene, 0, 0, this.radius, 0, 360, false, 0x888888);
-    outer.setStrokeStyle(2, 0x666666);
-    this.blade.add(outer);
+    // Outer circle - use Graphics for reliable rendering
+    const outerGraphics = new Phaser.GameObjects.Graphics(scene);
+    outerGraphics.fillStyle(0x888888, 1);
+    outerGraphics.fillCircle(0, 0, this.radius);
+    outerGraphics.lineStyle(2, 0x666666, 1);
+    outerGraphics.strokeCircle(0, 0, this.radius);
+    this.blade.add(outerGraphics);
 
     // Inner circle
-    const inner = new Phaser.GameObjects.Arc(scene, 0, 0, this.radius * 0.3, 0, 360, false, 0x444444);
-    this.blade.add(inner);
+    const innerGraphics = new Phaser.GameObjects.Graphics(scene);
+    innerGraphics.fillStyle(0x444444, 1);
+    innerGraphics.fillCircle(0, 0, this.radius * 0.3);
+    this.blade.add(innerGraphics);
 
     // Teeth (8 triangular teeth)
+    const teethGraphics = new Phaser.GameObjects.Graphics(scene);
+    teethGraphics.fillStyle(0xaaaaaa, 1);
     const numTeeth = 8;
+    const toothExtend = this.radius * 0.35;
+    const toothInset = sz(SIZE.SAW_TOOTH_INSET);
     for (let i = 0; i < numTeeth; i++) {
       const angle = (i / numTeeth) * Math.PI * 2;
-      const toothX = Math.cos(angle) * this.radius;
-      const toothY = Math.sin(angle) * this.radius;
 
-      const tooth = new Phaser.GameObjects.Triangle(
-        scene,
-        toothX,
-        toothY,
-        0, -6,
-        -4, 4,
-        4, 4,
-        0xaaaaaa
-      );
-      tooth.setRotation(angle + Math.PI / 2);
-      this.blade.add(tooth);
+      // Draw tooth as triangle pointing outward
+      const tipX = Math.cos(angle) * (this.radius + toothExtend);
+      const tipY = Math.sin(angle) * (this.radius + toothExtend);
+      const leftX = Math.cos(angle - 0.3) * (this.radius - toothInset);
+      const leftY = Math.sin(angle - 0.3) * (this.radius - toothInset);
+      const rightX = Math.cos(angle + 0.3) * (this.radius - toothInset);
+      const rightY = Math.sin(angle + 0.3) * (this.radius - toothInset);
+
+      teethGraphics.fillTriangle(tipX, tipY, leftX, leftY, rightX, rightY);
     }
+    this.blade.add(teethGraphics);
 
     this.add(this.blade);
 
     // Create hitbox
     this.hitbox = scene.physics.add.sprite(config.x, config.y, 'sawblade');
     this.hitbox.setVisible(false);
-    this.hitbox.setCircle(this.radius - 2);
+    this.hitbox.setCircle(this.radius - toothInset);
     const body = this.hitbox.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false);
 

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { TILE_SIZE } from '../config/gameConfig';
 
 export class Coin extends Phaser.GameObjects.Container {
   private coinGraphic: Phaser.GameObjects.Arc;
@@ -6,6 +7,7 @@ export class Coin extends Phaser.GameObjects.Container {
   private hitbox: Phaser.Physics.Arcade.Sprite;
   private collected: boolean = false;
   private coinScene: Phaser.Scene;
+  private floatingTween: Phaser.Tweens.Tween | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
@@ -13,17 +15,20 @@ export class Coin extends Phaser.GameObjects.Container {
 
     scene.add.existing(this);
 
+    const coinRadius = TILE_SIZE * 0.25;
+    const glowRadius = TILE_SIZE * 0.35;
+
     // Glow effect
-    this.glowGraphic = scene.add.circle(0, 0, 12, 0xffd700, 0.3);
+    this.glowGraphic = scene.add.circle(0, 0, glowRadius, 0xffd700, 0.3);
     this.add(this.glowGraphic);
 
     // Main coin
-    this.coinGraphic = scene.add.circle(0, 0, 8, 0xffd700);
-    this.coinGraphic.setStrokeStyle(2, 0xffaa00);
+    this.coinGraphic = scene.add.circle(0, 0, coinRadius, 0xffd700);
+    this.coinGraphic.setStrokeStyle(3, 0xffaa00);
     this.add(this.coinGraphic);
 
     // Inner shine (added to coinGraphic so it rotates together)
-    const shine = scene.add.circle(-2, -2, 3, 0xffff88, 0.8);
+    const shine = scene.add.circle(-coinRadius * 0.25, -coinRadius * 0.25, coinRadius * 0.35, 0xffff88, 0.8);
     this.add(shine);
 
     // Group coin and shine for rotation
@@ -34,12 +39,12 @@ export class Coin extends Phaser.GameObjects.Container {
     this.hitbox.setVisible(false);
     const body = this.hitbox.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false);
-    body.setCircle(10);
+    body.setCircle(coinRadius * 1.2);
 
     // Floating animation
-    scene.tweens.add({
+    this.floatingTween = scene.tweens.add({
       targets: this,
-      y: y - 5,
+      y: y - TILE_SIZE * 0.1,
       duration: 600,
       yoyo: true,
       repeat: -1,
@@ -86,7 +91,7 @@ export class Coin extends Phaser.GameObjects.Container {
     // Collection animation
     this.coinScene.tweens.add({
       targets: this,
-      y: this.y - 30,
+      y: this.y - TILE_SIZE * 0.5,
       scale: 1.5,
       alpha: 0,
       duration: 300,
@@ -100,16 +105,16 @@ export class Coin extends Phaser.GameObjects.Container {
     for (let i = 0; i < 8; i++) {
       const angle = (i / 8) * Math.PI * 2;
       const sparkle = this.coinScene.add.circle(
-        this.x + Math.cos(angle) * 5,
-        this.y + Math.sin(angle) * 5,
-        3,
+        this.x + Math.cos(angle) * TILE_SIZE * 0.1,
+        this.y + Math.sin(angle) * TILE_SIZE * 0.1,
+        TILE_SIZE * 0.08,
         0xffd700
       );
 
       this.coinScene.tweens.add({
         targets: sparkle,
-        x: this.x + Math.cos(angle) * 30,
-        y: this.y + Math.sin(angle) * 30,
+        x: this.x + Math.cos(angle) * TILE_SIZE * 0.5,
+        y: this.y + Math.sin(angle) * TILE_SIZE * 0.5,
         alpha: 0,
         scale: 0,
         duration: 300,
@@ -122,6 +127,13 @@ export class Coin extends Phaser.GameObjects.Container {
 
   isCollected(): boolean {
     return this.collected;
+  }
+
+  stopFloating(): void {
+    if (this.floatingTween) {
+      this.floatingTween.stop();
+      this.floatingTween = null;
+    }
   }
 
   destroy(fromScene?: boolean): void {

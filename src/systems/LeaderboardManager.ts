@@ -1,64 +1,40 @@
-export interface LeaderboardEntry {
-  name: string;
-  score: number;
-  levels: number;
-  deaths: number;
-  time: number;
-  date: string;
-}
+import { supabaseService, LeaderboardEntry } from '../services/SupabaseService';
 
-const STORAGE_KEY = 'junie-glitch-run-leaderboard';
+export type { LeaderboardEntry };
+
 const MAX_ENTRIES = 10;
 
 export class LeaderboardManager {
   private entries: LeaderboardEntry[] = [];
+  private loaded: boolean = false;
 
   constructor() {
-    this.load();
+    // Don't auto-load - call load() explicitly
   }
 
-  private load(): void {
+  async load(): Promise<void> {
+    if (this.loaded) return;
+
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      if (data) {
-        this.entries = JSON.parse(data);
-      }
+      this.entries = await supabaseService.getLeaderboard(MAX_ENTRIES);
+      this.loaded = true;
     } catch (e) {
       console.warn('Failed to load leaderboard:', e);
       this.entries = [];
     }
   }
 
-  private save(): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.entries));
-    } catch (e) {
-      console.warn('Failed to save leaderboard:', e);
+  async addEntry(entry: Omit<LeaderboardEntry, 'date'>): Promise<number> {
+    const result = await supabaseService.addLeaderboardEntry(entry);
+
+    if (result.success) {
+      // Reload to get updated list
+      this.loaded = false;
+      await this.load();
+      return result.rank || -1;
     }
-  }
 
-  addEntry(entry: Omit<LeaderboardEntry, 'date'>): number {
-    const newEntry: LeaderboardEntry = {
-      ...entry,
-      date: new Date().toISOString(),
-    };
-
-    this.entries.push(newEntry);
-
-    // Sort by score (higher is better)
-    this.entries.sort((a, b) => b.score - a.score);
-
-    // Keep only top entries
-    this.entries = this.entries.slice(0, MAX_ENTRIES);
-
-    this.save();
-
-    // Return rank (1-indexed, -1 if not in top 10)
-    const rank = this.entries.findIndex(
-      (e) => e.date === newEntry.date && e.name === newEntry.name && e.score === newEntry.score
-    );
-
-    return rank >= 0 ? rank + 1 : -1;
+    return -1;
   }
 
   getEntries(): LeaderboardEntry[] {
@@ -69,7 +45,8 @@ export class LeaderboardManager {
     return this.entries.slice(0, count);
   }
 
-  getRank(score: number): number {
+  async getRank(score: number): Promise<number> {
+    // Check against loaded entries first
     for (let i = 0; i < this.entries.length; i++) {
       if (score > this.entries[i].score) {
         return i + 1;
@@ -83,17 +60,15 @@ export class LeaderboardManager {
     return -1;
   }
 
-  isHighScore(score: number): boolean {
-    return this.getRank(score) !== -1;
+  async isHighScore(score: number): Promise<boolean> {
+    return await supabaseService.isHighScore(score);
   }
 
-  clear(): void {
-    this.entries = [];
-    this.save();
-  }
-
-  getHighestScore(): number {
-    return this.entries.length > 0 ? this.entries[0].score : 0;
+  async getHighestScore(): Promise<number> {
+    if (this.entries.length > 0) {
+      return this.entries[0].score;
+    }
+    return await supabaseService.getHighestScore();
   }
 
   formatDate(isoString: string): string {

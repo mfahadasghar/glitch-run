@@ -1,15 +1,15 @@
 // Pure constants with no scene imports to avoid circular dependencies
-export const TILE_SIZE = 32;
-export const GRID_WIDTH = 40;
-export const GRID_HEIGHT = 23;
-export const GAME_WIDTH = GRID_WIDTH * TILE_SIZE;   // 1280
-export const GAME_HEIGHT = GRID_HEIGHT * TILE_SIZE; // 736
+export const TILE_SIZE = 60; // Larger tiles for better visibility
+export const GRID_WIDTH = 32; // 1920 / 60 = 32
+export const GRID_HEIGHT = 18; // 1080 / 60 = 18
+export const GAME_WIDTH = GRID_WIDTH * TILE_SIZE;   // 1920
+export const GAME_HEIGHT = GRID_HEIGHT * TILE_SIZE; // 1080
 
 export const PLAYER_CONFIG = {
-  gravity: 1000,
-  jumpVelocity: -500, // Increased for better platforming (can jump ~4 tiles)
-  moveSpeed: 250, // Slightly faster
-  size: 24,
+  gravity: 1200,
+  jumpVelocity: -620,
+  moveSpeed: 380,
+  size: 48,
 };
 
 export const SCORE_CONFIG = {

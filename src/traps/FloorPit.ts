@@ -12,6 +12,10 @@ export class FloorPit extends BaseTrap {
   private pitWidth: number;
   private isOpen: boolean = false;
   private triggerDistance: number = TILE_SIZE * 2;
+  private inCooldown: boolean = false;
+  private cooldownTimer: Phaser.Time.TimerEvent | null = null;
+  private openTimer: Phaser.Time.TimerEvent | null = null;
+  private closeTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor(scene: Phaser.Scene, config: FloorPitConfig) {
     super(scene, config);
@@ -50,7 +54,7 @@ export class FloorPit extends BaseTrap {
   }
 
   trigger(): void {
-    if (!this.isActive() || this.isOpen || this.isTriggered) return;
+    if (!this.isActive() || this.isOpen || this.isTriggered || this.inCooldown) return;
 
     this.isTriggered = true;
 
@@ -64,7 +68,7 @@ export class FloorPit extends BaseTrap {
     });
 
     // Open the pit after warning
-    this.trapScene.time.delayedCall(150, () => {
+    this.openTimer = this.trapScene.time.delayedCall(150, () => {
       if (!this.active) return;
 
       // Split and fall animation
@@ -82,7 +86,7 @@ export class FloorPit extends BaseTrap {
     });
 
     // Close after a while
-    this.trapScene.time.delayedCall(3000, () => {
+    this.closeTimer = this.trapScene.time.delayedCall(3000, () => {
       if (!this.active) return;
       this.closePit();
     });
@@ -103,12 +107,36 @@ export class FloorPit extends BaseTrap {
   }
 
   reset(): void {
+    // Cancel pending timers
+    if (this.openTimer) {
+      this.openTimer.remove();
+      this.openTimer = null;
+    }
+    if (this.closeTimer) {
+      this.closeTimer.remove();
+      this.closeTimer = null;
+    }
+    if (this.cooldownTimer) {
+      this.cooldownTimer.remove();
+      this.cooldownTimer = null;
+    }
+
+    // Kill any active tweens
+    this.trapScene.tweens.killTweensOf(this.cover);
+
     this.isTriggered = false;
     this.isOpen = false;
+    this.inCooldown = true;
     if (!this.active) return;
 
     this.cover.setScale(1);
     this.cover.setAlpha(1);
+    this.cover.setY(0); // Reset shake offset
+
+    // End cooldown after 500ms
+    this.cooldownTimer = this.trapScene.time.delayedCall(500, () => {
+      this.inCooldown = false;
+    });
   }
 
   isOpenPit(): boolean {

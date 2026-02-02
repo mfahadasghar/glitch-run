@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 import { BaseTrap, TrapConfig } from './BaseTrap';
-import { TILE_SIZE } from '../config/gameConfig';
+import { TILE_SIZE, SIZE, sz } from '../config/gameConfig';
 
 export class CollapsingPlatform extends BaseTrap {
   private platform: Phaser.GameObjects.Rectangle;
   private collapseDelay: number = 300; // 0.3s
   private originalY: number;
+  private inCooldown: boolean = false;
+  private cooldownTimer: Phaser.Time.TimerEvent | null = null;
+  private collapseTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor(scene: Phaser.Scene, config: TrapConfig) {
     super(scene, config);
@@ -27,21 +30,22 @@ export class CollapsingPlatform extends BaseTrap {
   }
 
   trigger(): void {
-    if (!this.isActive()) return;
+    if (!this.isActive() || this.inCooldown) return;
 
     this.isTriggered = true;
 
     // Warning shake - platform vibrates
+    const shakeAmount = sz(SIZE.SHAKE_AMOUNT);
     this.trapScene.tweens.add({
       targets: this.platform,
-      x: 2,
+      x: shakeAmount,
       duration: 40,
       yoyo: true,
       repeat: 4,
     });
 
     // Collapse after delay
-    this.trapScene.time.delayedCall(this.collapseDelay, () => {
+    this.collapseTimer = this.trapScene.time.delayedCall(this.collapseDelay, () => {
       if (!this.active) return;
 
       // Disable collision
@@ -65,7 +69,25 @@ export class CollapsingPlatform extends BaseTrap {
   }
 
   reset(): void {
+    // Cancel pending timers
+    if (this.collapseTimer) {
+      this.collapseTimer.remove();
+      this.collapseTimer = null;
+    }
+    if (this.cooldownTimer) {
+      this.cooldownTimer.remove();
+      this.cooldownTimer = null;
+    }
+
+    // Kill any active tweens first
+    this.trapScene.tweens.killTweensOf(this);
+    this.trapScene.tweens.killTweensOf(this.platform);
+    if (this.hitbox) {
+      this.trapScene.tweens.killTweensOf(this.hitbox);
+    }
+
     this.isTriggered = false;
+    this.inCooldown = true;
     if (!this.active) return;
 
     this.setPosition(this.x, this.originalY);
@@ -79,6 +101,11 @@ export class CollapsingPlatform extends BaseTrap {
       const body = this.hitbox.body as Phaser.Physics.Arcade.Body;
       body.enable = true;
     }
+
+    // End cooldown after 500ms
+    this.cooldownTimer = this.trapScene.time.delayedCall(500, () => {
+      this.inCooldown = false;
+    });
   }
 
   getPlatformBody(): Phaser.Physics.Arcade.Sprite | null {

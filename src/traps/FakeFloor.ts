@@ -12,6 +12,9 @@ export class FakeFloor extends Phaser.GameObjects.Container {
   private hitbox: Phaser.Physics.Arcade.Sprite;
   private triggered: boolean = false;
   private gameScene: Phaser.Scene;
+  private inCooldown: boolean = false;
+  private cooldownTimer: Phaser.Time.TimerEvent | null = null;
+  private hideTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor(scene: Phaser.Scene, config: FakeFloorConfig) {
     super(scene, config.x, config.y);
@@ -42,7 +45,7 @@ export class FakeFloor extends Phaser.GameObjects.Container {
   }
 
   trigger(): void {
-    if (this.triggered) return;
+    if (this.triggered || this.inCooldown) return;
     this.triggered = true;
 
     // Floor crumbles away
@@ -79,7 +82,7 @@ export class FakeFloor extends Phaser.GameObjects.Container {
     }
 
     // Hide after a short delay
-    this.gameScene.time.delayedCall(150, () => {
+    this.hideTimer = this.gameScene.time.delayedCall(150, () => {
       this.setVisible(false);
     });
   }
@@ -93,9 +96,28 @@ export class FakeFloor extends Phaser.GameObjects.Container {
   }
 
   reset(): void {
+    // Cancel pending timers
+    if (this.hideTimer) {
+      this.hideTimer.remove();
+      this.hideTimer = null;
+    }
+    if (this.cooldownTimer) {
+      this.cooldownTimer.remove();
+      this.cooldownTimer = null;
+    }
+
+    // Kill any active tweens
+    this.gameScene.tweens.killTweensOf(this.floor);
+
     this.triggered = false;
+    this.inCooldown = true;
     this.setVisible(true);
     this.floor.setAlpha(1);
+
+    // End cooldown after 500ms
+    this.cooldownTimer = this.gameScene.time.delayedCall(500, () => {
+      this.inCooldown = false;
+    });
   }
 
   destroy(fromScene?: boolean): void {

@@ -17,6 +17,9 @@ export class SuddenSpike extends BaseTrap {
   private reactionWindow: number = 150; // 0.15s
   private hiddenY: number;
   private extendedY: number;
+  private riseTimer: Phaser.Time.TimerEvent | null = null;
+  private inCooldown: boolean = false;
+  private cooldownTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor(scene: Phaser.Scene, config: SuddenSpikeConfig) {
     super(scene, config);
@@ -27,17 +30,17 @@ export class SuddenSpike extends BaseTrap {
     // Create container for multiple small spikes
     this.spikesContainer = scene.add.container(0, 0);
 
-    // Create 4 small spikes
+    // Create 4 small spikes - sizes relative to TILE_SIZE
     const numSpikes = 4;
-    const spikeWidth = 5;
-    const spikeHeight = 10;
-    const spacing = 7;
+    const spikeWidth = TILE_SIZE * 0.12;
+    const spikeHeight = TILE_SIZE * 0.25;
+    const spacing = TILE_SIZE * 0.15;
     const totalWidth = (numSpikes - 1) * spacing + spikeWidth;
     const startX = -totalWidth / 2 + spikeWidth / 2;
 
     // Small platform base at the bottom
-    const baseWidth = totalWidth + 6;
-    const baseHeight = 4;
+    const baseWidth = totalWidth + TILE_SIZE * 0.15;
+    const baseHeight = TILE_SIZE * 0.1;
     const baseY = this.direction === 'up' ? spikeHeight / 2 + baseHeight / 2 : -spikeHeight / 2 - baseHeight / 2;
     const base = scene.add.rectangle(0, baseY, baseWidth, baseHeight, 0x333333);
     this.spikesContainer.add(base);
@@ -93,7 +96,7 @@ export class SuddenSpike extends BaseTrap {
   }
 
   trigger(): void {
-    if (!this.isActive() || this.isExtended) return;
+    if (!this.isActive() || this.isExtended || this.inCooldown) return;
 
     this.isTriggered = true;
     this.isExtended = true;
@@ -107,9 +110,9 @@ export class SuddenSpike extends BaseTrap {
       repeat: 3,
     });
 
-    // Rise from ground after reaction window
-    this.trapScene.time.delayedCall(this.reactionWindow, () => {
-      if (!this.active) return;
+    // Rise from ground after reaction window (store timer so we can cancel on reset)
+    this.riseTimer = this.trapScene.time.delayedCall(this.reactionWindow, () => {
+      if (!this.active || !this.isExtended) return;
       // Rise animation
       this.trapScene.tweens.add({
         targets: this.spikesContainer,
@@ -129,8 +132,22 @@ export class SuddenSpike extends BaseTrap {
   }
 
   reset(): void {
+    // Cancel pending timers
+    if (this.riseTimer) {
+      this.riseTimer.remove();
+      this.riseTimer = null;
+    }
+    if (this.cooldownTimer) {
+      this.cooldownTimer.remove();
+      this.cooldownTimer = null;
+    }
+
+    // Kill any active tweens
+    this.trapScene.tweens.killTweensOf(this.spikesContainer);
+
     this.isTriggered = false;
     this.isExtended = false;
+    this.inCooldown = true;
     if (!this.active) return;
 
     this.spikesContainer.setY(this.hiddenY);
@@ -141,5 +158,10 @@ export class SuddenSpike extends BaseTrap {
       const body = this.hitbox.body as Phaser.Physics.Arcade.Body;
       body.enable = false;
     }
+
+    // End cooldown after 500ms
+    this.cooldownTimer = this.trapScene.time.delayedCall(500, () => {
+      this.inCooldown = false;
+    });
   }
 }

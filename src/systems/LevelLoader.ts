@@ -26,74 +26,148 @@ export interface LoadedLevel {
   coins: Array<{ x: number; y: number }>;
 }
 
+interface LevelManifest {
+  totalLevels: number;
+  levels: string[];
+}
+
 export class LevelLoader {
-  private levels: LevelJSON[] = [];
-  private currentIndex: number = 0;
+  private manifest: LevelManifest | null = null;
+  private playedLevels: Set<number> = new Set();
+  private currentLevelIndex: number = -1;
+  private levelsCompleted: number = 0;
+  private isTestMode: boolean = false;
+  private testLevel: LevelJSON | null = null;
 
   /**
-   * Load levels from an array of level data (for bundled levels)
+   * Initialize the loader by fetching the manifest
    */
-  loadFromArray(levelsData: LevelJSON[]): void {
-    this.levels = levelsData;
-    this.currentIndex = 0;
+  async init(): Promise<void> {
+    try {
+      const response = await fetch('/levels/manifest.json');
+      this.manifest = await response.json();
+    } catch (error) {
+      console.error('Failed to load level manifest:', error);
+      this.manifest = { totalLevels: 0, levels: [] };
+    }
   }
 
   /**
-   * Add a single level
+   * Set test mode with a single level
    */
-  addLevel(level: LevelJSON): void {
-    this.levels.push(level);
+  setTestMode(level: LevelJSON): void {
+    this.isTestMode = true;
+    this.testLevel = level;
   }
 
   /**
    * Get total number of levels
    */
   getLevelCount(): number {
-    return this.levels.length;
+    if (this.isTestMode) return 1;
+    return this.manifest?.totalLevels || 0;
   }
 
   /**
-   * Get current level index (1-based for display)
+   * Get current level number (for display)
    */
   getCurrentLevelNumber(): number {
-    return this.currentIndex + 1;
+    return this.levelsCompleted + 1;
   }
 
   /**
-   * Load and parse a specific level by index
+   * Get number of levels completed
    */
-  getLevel(index: number): LoadedLevel | null {
-    if (index < 0 || index >= this.levels.length) {
+  getLevelsCompleted(): number {
+    return this.levelsCompleted;
+  }
+
+  /**
+   * Load a random level that hasn't been played yet
+   */
+  async getNextLevel(): Promise<LoadedLevel | null> {
+    // Test mode - return the test level
+    if (this.isTestMode && this.testLevel) {
+      if (this.levelsCompleted === 0) {
+        this.levelsCompleted++;
+        return this.parseLevel(this.testLevel);
+      }
       return null;
     }
 
-    const levelData = this.levels[index];
-    return this.parseLevel(levelData);
-  }
+    if (!this.manifest || this.manifest.totalLevels === 0) {
+      return null;
+    }
 
-  /**
-   * Get current level and advance to next
-   */
-  getNextLevel(): LoadedLevel | null {
-    const level = this.getLevel(this.currentIndex);
+    // If all levels have been played, reset
+    if (this.playedLevels.size >= this.manifest.totalLevels) {
+      this.playedLevels.clear();
+    }
+
+    // Pick a random level that hasn't been played
+    const availableLevels: number[] = [];
+    for (let i = 0; i < this.manifest.totalLevels; i++) {
+      if (!this.playedLevels.has(i)) {
+        availableLevels.push(i);
+      }
+    }
+
+    if (availableLevels.length === 0) {
+      return null;
+    }
+
+    // Pick random from available
+    const randomIndex = Math.floor(Math.random() * availableLevels.length);
+    this.currentLevelIndex = availableLevels[randomIndex];
+    this.playedLevels.add(this.currentLevelIndex);
+
+    // Load the level
+    const level = await this.loadLevelByIndex(this.currentLevelIndex);
     if (level) {
-      this.currentIndex++;
+      this.levelsCompleted++;
     }
     return level;
   }
 
   /**
-   * Check if there are more levels
+   * Load a specific level by index
    */
-  hasMoreLevels(): boolean {
-    return this.currentIndex < this.levels.length;
+  private async loadLevelByIndex(index: number): Promise<LoadedLevel | null> {
+    if (!this.manifest || index < 0 || index >= this.manifest.levels.length) {
+      return null;
+    }
+
+    try {
+      const filename = this.manifest.levels[index];
+      const response = await fetch(`/levels/${filename}`);
+      const levelData: LevelJSON = await response.json();
+      return this.parseLevel(levelData);
+    } catch (error) {
+      console.error(`Failed to load level ${index}:`, error);
+      return null;
+    }
   }
 
   /**
-   * Reset to first level
+   * Check if there are more levels to play
+   */
+  hasMoreLevels(): boolean {
+    if (this.isTestMode) {
+      return this.levelsCompleted === 0;
+    }
+    // Always has more levels (random selection loops)
+    return this.manifest !== null && this.manifest.totalLevels > 0;
+  }
+
+  /**
+   * Reset the loader
    */
   reset(): void {
-    this.currentIndex = 0;
+    this.playedLevels.clear();
+    this.currentLevelIndex = -1;
+    this.levelsCompleted = 0;
+    this.isTestMode = false;
+    this.testLevel = null;
   }
 
   /**
@@ -101,7 +175,6 @@ export class LevelLoader {
    */
   private parseLevel(data: LevelJSON): LoadedLevel {
     // Convert grid platforms to world coordinates
-    // Group adjacent platforms into larger rectangles for efficiency
     const platforms = this.groupPlatforms(data.platforms);
 
     // Convert traps
@@ -134,8 +207,6 @@ export class LevelLoader {
    * Group adjacent platform tiles into rectangles
    */
   private groupPlatforms(tiles: number[][]): Array<{ x: number; y: number; width: number; height: number }> {
-    // For simplicity, create individual tile platforms
-    // A more advanced implementation could merge adjacent tiles
     const platforms: Array<{ x: number; y: number; width: number; height: number }> = [];
 
     // Create a set for quick lookup
@@ -174,7 +245,7 @@ export class LevelLoader {
   }
 
   /**
-   * Load level directly from a LevelJSON object (for test mode)
+   * Parse a single level directly (for test mode)
    */
   static parseSingleLevel(data: LevelJSON): LoadedLevel {
     const loader = new LevelLoader();
@@ -182,123 +253,5 @@ export class LevelLoader {
   }
 }
 
-// Bundled levels - these are the default levels
-export const BUNDLED_LEVELS: LevelJSON[] = [
-  // Level 1: Tutorial - Basic movement
-  {
-    name: "Welcome to Hell",
-    platforms: [
-      // Starting platform
-      [2,11], [3,11], [4,11], [5,11], [6,11], [7,11],
-      // Middle platforms
-      [12,11], [13,11], [14,11], [15,11],
-      [20,9], [21,9], [22,9],
-      [27,11], [28,11], [29,11], [30,11],
-      // End platform
-      [35,11], [36,11], [37,11], [38,11], [39,11], [40,11],
-    ],
-    traps: [
-      // Simple spikes to introduce danger
-      { type: "spike", x: 14, y: 10, config: { direction: "up" } },
-      { type: "spike", x: 28, y: 10, config: { direction: "up" } },
-    ],
-    start: { x: 3, y: 10 },
-    goal: { x: 38, y: 10 },
-    coins: [[10, 10], [25, 8], [33, 10]],
-  },
-
-  // Level 2: Gravity Trap
-  {
-    name: "Look Up!",
-    platforms: [
-      // Floor sections
-      [2,11], [3,11], [4,11], [5,11], [6,11],
-      [10,11], [11,11], [12,11], [13,11], [14,11], [15,11],
-      [20,11], [21,11], [22,11], [23,11],
-      [30,11], [31,11], [32,11], [33,11], [34,11], [35,11],
-    ],
-    traps: [
-      // Gravity zone with ceiling spike - classic gotcha!
-      { type: "gravity", x: 12, y: 10 },
-      { type: "gravity", x: 13, y: 10 },
-      { type: "spike", x: 12, y: 2, config: { direction: "down" } },
-      { type: "spike", x: 13, y: 2, config: { direction: "down" } },
-      // Another spike for variety
-      { type: "spike", x: 21, y: 10, config: { direction: "up" } },
-    ],
-    start: { x: 3, y: 10 },
-    goal: { x: 33, y: 10 },
-    coins: [[8, 10], [18, 10], [28, 10]],
-  },
-
-  // Level 3: Fake Floor Introduction
-  {
-    name: "Trust Issues",
-    platforms: [
-      // Start
-      [2,11], [3,11], [4,11], [5,11],
-      // Long platform with fake sections
-      [8,11], [9,11], [10,11], [11,11], [12,11], [13,11], [14,11], [15,11],
-      [16,11], [17,11], [18,11], [19,11], [20,11], [21,11],
-      // End
-      [25,11], [26,11], [27,11], [28,11], [29,11],
-    ],
-    traps: [
-      // Fake floors in the middle - look safe but aren't!
-      { type: "fakefloor", x: 11, y: 11 },
-      { type: "fakefloor", x: 17, y: 11 },
-      // Spikes below fake floors
-      { type: "spike", x: 11, y: 13, config: { direction: "up" } },
-      { type: "spike", x: 17, y: 13, config: { direction: "up" } },
-    ],
-    start: { x: 3, y: 10 },
-    goal: { x: 27, y: 10 },
-    coins: [[7, 10], [14, 10], [23, 10]],
-  },
-
-  // Level 4: The Safe Spot
-  {
-    name: "The Safe Spot",
-    platforms: [
-      // Start
-      [2,11], [3,11], [4,11], [5,11],
-      // Platform with spike trap
-      [10,11], [11,11], [12,11], [13,11], [14,11], [15,11], [16,11],
-      // End
-      [22,11], [23,11], [24,11], [25,11], [26,11],
-    ],
-    traps: [
-      // Two spikes with "safe" middle that's fake!
-      { type: "spike", x: 11, y: 10, config: { direction: "up" } },
-      { type: "spike", x: 15, y: 10, config: { direction: "up" } },
-      { type: "fakefloor", x: 13, y: 11 }, // The "safe" spot is a trap!
-    ],
-    start: { x: 3, y: 10 },
-    goal: { x: 24, y: 10 },
-    coins: [[8, 10], [19, 10]],
-  },
-
-  // Level 5: Bounce Trap
-  {
-    name: "Spring Loaded Surprise",
-    platforms: [
-      // Start
-      [2,11], [3,11], [4,11], [5,11], [6,11],
-      // Middle
-      [12,11], [13,11], [14,11], [15,11],
-      // End
-      [25,11], [26,11], [27,11], [28,11], [29,11],
-    ],
-    traps: [
-      // Bounce pad that sends you into ceiling spikes
-      { type: "bounce", x: 13, y: 10 },
-      { type: "spike", x: 13, y: 2, config: { direction: "down" } },
-      { type: "spike", x: 14, y: 2, config: { direction: "down" } },
-      // Crushing block for extra fun
-      { type: "crushing", x: 20, y: 2 },
-    ],
-    start: { x: 3, y: 10 },
-    goal: { x: 27, y: 10 },
-    coins: [[9, 10], [22, 10]],
-  },
-];
+// Keep for backwards compatibility but mark as deprecated
+export const BUNDLED_LEVELS: LevelJSON[] = [];

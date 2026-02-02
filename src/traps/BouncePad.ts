@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TILE_SIZE } from '../config/gameConfig';
+import { TILE_SIZE, SIZE, sz } from '../config/gameConfig';
 
 export interface BouncePadConfig {
   x: number;
@@ -23,28 +23,49 @@ export class BouncePad extends Phaser.GameObjects.Container {
 
     scene.add.existing(this as unknown as Phaser.GameObjects.GameObject);
 
-    // Base
-    const base = scene.add.rectangle(0, 8, TILE_SIZE * 0.9, 8, 0x666666);
+    // Position everything relative to bottom of cell
+    // Cell center is at y=0, bottom is at y=TILE_SIZE/2
+    const bottomY = TILE_SIZE / 2;
+
+    const baseWidth = TILE_SIZE * 0.9;
+    const baseHeight = TILE_SIZE * 0.15;
+    const springWidth = TILE_SIZE * 0.4;
+    const springHeight = TILE_SIZE * 0.3;
+    const padWidth = TILE_SIZE * 0.8;
+    const padHeight = TILE_SIZE * 0.15;
+
+    // Base at bottom of cell
+    const baseY = bottomY - baseHeight / 2;
+    const base = scene.add.rectangle(0, baseY, baseWidth, baseHeight, 0x666666);
     this.add(base);
 
-    // Spring coils
-    this.spring = scene.add.rectangle(0, 2, TILE_SIZE * 0.5, 12, 0xffaa00);
+    // Spring above base
+    const springY = baseY - baseHeight / 2 - springHeight / 2;
+    this.spring = scene.add.rectangle(0, springY, springWidth, springHeight, 0xffaa00);
     this.spring.setStrokeStyle(2, 0xff8800);
     this.add(this.spring);
 
-    // Top pad
-    this.pad = scene.add.rectangle(0, -6, TILE_SIZE * 0.8, 6, 0xff6600);
-    this.pad.setStrokeStyle(1, 0xff4400);
+    // Top pad above spring
+    const padY = springY - springHeight / 2 - padHeight / 2;
+    this.pad = scene.add.rectangle(0, padY, padWidth, padHeight, 0xff6600);
+    this.pad.setStrokeStyle(2, 0xff4400);
     this.add(this.pad);
 
-    // Chevron arrows on pad
-    const arrow1 = scene.add.triangle(0, -8, -6, 4, 6, 4, 0, -2, 0xffff00);
-    this.add(arrow1);
+    // Chevron arrow on pad
+    const arrowSize = TILE_SIZE * 0.12;
+    const arrow = scene.add.triangle(
+      0, padY - padHeight / 2 - arrowSize * 0.3,
+      -arrowSize, arrowSize,
+      arrowSize, arrowSize,
+      0, 0,
+      0xffff00
+    );
+    this.add(arrow);
 
-    // Create hitbox
-    this.hitbox = scene.physics.add.sprite(config.x, config.y - 4, 'bounce');
+    // Create hitbox at pad position
+    this.hitbox = scene.physics.add.sprite(config.x, config.y + padY, 'bounce');
     this.hitbox.setVisible(false);
-    this.hitbox.setSize(TILE_SIZE * 0.8, 16);
+    this.hitbox.setSize(padWidth, padHeight + TILE_SIZE * 0.1);
     const body = this.hitbox.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false);
     body.setImmovable(true);
@@ -61,10 +82,11 @@ export class BouncePad extends Phaser.GameObjects.Container {
     player.setVelocityY(this.bouncePower);
 
     // Compress animation
+    const compression = sz(SIZE.COMPRESSION);
     this.gameScene.tweens.add({
       targets: [this.spring, this.pad],
-      scaleY: 0.3,
-      y: '+=8',
+      scaleY: 0.5,
+      y: `+=${compression}`,
       duration: 80,
       yoyo: true,
       ease: 'Back.easeOut',
@@ -81,14 +103,14 @@ export class BouncePad extends Phaser.GameObjects.Container {
     // Particle effect
     for (let i = 0; i < 6; i++) {
       const particle = this.gameScene.add.circle(
-        this.x + (Math.random() - 0.5) * 20,
-        this.y - 10,
-        3,
+        this.x + (Math.random() - 0.5) * TILE_SIZE * 0.4,
+        this.y - TILE_SIZE * 0.2,
+        TILE_SIZE * 0.06,
         0xffaa00
       );
       this.gameScene.tweens.add({
         targets: particle,
-        y: particle.y - 30 - Math.random() * 20,
+        y: particle.y - TILE_SIZE * 0.5 - Math.random() * TILE_SIZE * 0.3,
         alpha: 0,
         duration: 300,
         onComplete: () => particle.destroy(),

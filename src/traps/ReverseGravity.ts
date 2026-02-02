@@ -21,17 +21,21 @@ export class ReverseGravity extends BaseTrap {
     // Create a small ground pad (sits on floor)
     this.pad = scene.add.container(0, 0);
 
+    const baseHeight = TILE_SIZE * 0.15;
+    const glowHeight = TILE_SIZE * 0.08;
+
     // Base pad - small rectangle on ground
-    const base = scene.add.rectangle(0, 0, TILE_SIZE * 0.8, 8, 0x1a1a3a);
-    base.setStrokeStyle(1, 0x00bfff);
+    const base = scene.add.rectangle(0, 0, TILE_SIZE * 0.8, baseHeight, 0x1a1a3a);
+    base.setStrokeStyle(2, 0x00bfff);
     this.pad.add(base);
 
     // Glowing top surface
-    this.glowEffect = scene.add.rectangle(0, -2, TILE_SIZE * 0.7, 4, 0x00bfff, 0.6);
+    this.glowEffect = scene.add.rectangle(0, -baseHeight * 0.3, TILE_SIZE * 0.7, glowHeight, 0x00bfff, 0.6);
     this.pad.add(this.glowEffect);
 
     // Small arrow indicator
-    const arrow = scene.add.triangle(0, -10, 0, 6, -5, -2, 5, -2, 0x00bfff, 0.8);
+    const arrowSize = TILE_SIZE * 0.15;
+    const arrow = scene.add.triangle(0, -TILE_SIZE * 0.2, 0, arrowSize, -arrowSize * 0.6, -arrowSize * 0.3, arrowSize * 0.6, -arrowSize * 0.3, 0x00bfff, 0.8);
     this.pad.add(arrow);
 
     this.add(this.pad);
@@ -48,7 +52,7 @@ export class ReverseGravity extends BaseTrap {
     // Arrow bounce animation
     scene.tweens.add({
       targets: arrow,
-      y: -14,
+      y: -TILE_SIZE * 0.28,
       duration: 400,
       yoyo: true,
       repeat: -1,
@@ -61,7 +65,7 @@ export class ReverseGravity extends BaseTrap {
     const body = this.hitbox.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false);
     body.setImmovable(true);
-    body.setSize(TILE_SIZE * 0.8, 16);
+    body.setSize(TILE_SIZE * 0.8, TILE_SIZE * 0.3);
   }
 
   trigger(player: Player): void {
@@ -92,7 +96,14 @@ export class ReverseGravity extends BaseTrap {
   }
 
   reset(): void {
+    // Kill any active tweens
+    this.trapScene.tweens.killTweensOf(this.pad);
+    this.trapScene.tweens.killTweensOf(this.glowEffect);
+
     this.isTriggered = false;
     this.cooldown = false;
+
+    // Restore glow effect to default
+    this.glowEffect.setFillStyle(0x00bfff, 0.6);
   }
 }

@@ -1,6 +1,20 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConfig';
+import { GAME_WIDTH, GAME_HEIGHT, FONT, font } from '../config/gameConfig';
 import { LeaderboardManager } from '../systems/LeaderboardManager';
+
+// Layout constants (relative to screen height)
+const LAYOUT = {
+  TITLE_Y: 0.06,
+  NAME_Y: 0.14,
+  SCORE_Y: 0.24,
+  RANK_Y: 0.32,
+  BREAKDOWN_Y: 0.40,
+  LINE_HEIGHT: 0.037,
+  BUTTON_Y: 0.90,
+  HINT_Y: 0.96,
+};
+
+const JBMONO = '"JetBrains Mono", monospace';
 
 interface GameOverData {
   playerName: string;
@@ -20,6 +34,11 @@ interface GameOverData {
 export class GameOverScene extends Phaser.Scene {
   private gameData!: GameOverData;
   private leaderboardManager!: LeaderboardManager;
+  private rankText!: Phaser.GameObjects.Text;
+
+  // Snow effect
+  private snowflakes: Phaser.GameObjects.Rectangle[] = [];
+  private snowData: Array<{ vx: number; vy: number; baseX: number }> = [];
 
   constructor() {
     super({ key: 'GameOverScene' });
@@ -29,43 +48,43 @@ export class GameOverScene extends Phaser.Scene {
     this.gameData = data;
   }
 
-  create(): void {
+  async create(): Promise<void> {
     this.leaderboardManager = new LeaderboardManager();
 
-    // Add entry to leaderboard
-    const rank = this.leaderboardManager.addEntry({
-      name: this.gameData.playerName,
-      score: this.gameData.score,
-      levels: this.gameData.levels,
-      deaths: this.gameData.deaths,
-      time: this.gameData.time,
-    });
+    // Background overlay - purple (Cloud9 theme)
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x3b1fad);
 
-    // Background overlay
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.8);
+    // Create snow effect
+    this.snowflakes = [];
+    this.snowData = [];
+    this.createSnow();
 
-    // Title
-    const title = this.add.text(GAME_WIDTH / 2, 50, 'GAME OVER', {
-      fontSize: '48px',
-      color: '#e94560',
-      fontFamily: 'Arial, sans-serif',
+    // Layout values
+    const lineHeight = GAME_HEIGHT * LAYOUT.LINE_HEIGHT;
+
+    // Title - white
+    const title = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT * LAYOUT.TITLE_Y, 'GAME OVER', {
+      fontSize: font(FONT.TITLE_MD),
+      color: '#ffffff',
+      fontFamily: JBMONO,
       fontStyle: 'bold',
     });
     title.setOrigin(0.5);
 
-    // Player name
-    const nameText = this.add.text(GAME_WIDTH / 2, 100, this.gameData.playerName, {
-      fontSize: '24px',
-      color: '#00ff88',
-      fontFamily: 'Arial, sans-serif',
+    // Player name - white
+    const nameText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT * LAYOUT.NAME_Y, this.gameData.playerName, {
+      fontSize: font(FONT.SCORE_LG),
+      color: '#ffffff',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
     });
     nameText.setOrigin(0.5);
 
     // Final score (large)
-    const scoreText = this.add.text(GAME_WIDTH / 2, 160, `${this.gameData.score}`, {
-      fontSize: '64px',
+    const scoreText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT * LAYOUT.SCORE_Y, `${this.gameData.score}`, {
+      fontSize: font(FONT.SCORE_LG),
       color: '#ffd700',
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: JBMONO,
       fontStyle: 'bold',
     });
     scoreText.setOrigin(0.5);
@@ -79,85 +98,75 @@ export class GameOverScene extends Phaser.Scene {
       repeat: 1,
     });
 
-    // Rank display
-    if (rank > 0) {
-      const rankText = this.add.text(GAME_WIDTH / 2, 210, `#${rank} on Leaderboard!`, {
-        fontSize: '18px',
-        color: '#4a9eff',
-        fontFamily: 'Arial, sans-serif',
-      });
-      rankText.setOrigin(0.5);
-
-      if (rank === 1) {
-        rankText.setText('NEW HIGH SCORE!');
-        rankText.setColor('#ffd700');
-        this.tweens.add({
-          targets: rankText,
-          scale: 1.2,
-          duration: 500,
-          yoyo: true,
-          repeat: -1,
-        });
-      }
-    }
+    // Rank display (initially showing "Saving...")
+    this.rankText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT * LAYOUT.RANK_Y, 'Saving score...', {
+      fontSize: font(FONT.BODY),
+      color: '#888888',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
+    });
+    this.rankText.setOrigin(0.5);
 
     // Score breakdown
-    const breakdownY = 260;
-    const lineHeight = 25;
+    const breakdownY = GAME_HEIGHT * LAYOUT.BREAKDOWN_Y;
 
     this.add.text(GAME_WIDTH / 2, breakdownY, '--- Score Breakdown ---', {
-      fontSize: '14px',
-      color: '#888888',
-      fontFamily: 'Arial, sans-serif',
+      fontSize: font(FONT.HEADING),
+      color: '#ffffff',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
     }).setOrigin(0.5);
 
     const breakdown = this.gameData.breakdown;
 
-    this.createBreakdownLine('Base Score:', `+${breakdown.baseScore}`, breakdownY + lineHeight, '#ffffff');
-    this.createBreakdownLine('Level Bonus:', `+${breakdown.levelBonus}`, breakdownY + lineHeight * 2, '#00ff88');
-    this.createBreakdownLine('Death Penalty:', `-${breakdown.deathPenalty}`, breakdownY + lineHeight * 3, '#e94560');
-    this.createBreakdownLine('Time Penalty:', `-${breakdown.timePenalty}`, breakdownY + lineHeight * 4, '#ff8800');
+    this.createBreakdownLine('Base Score:', `+${breakdown.baseScore}`, breakdownY + lineHeight * 1.2, '#ffffff');
+    this.createBreakdownLine('Level Bonus:', `+${breakdown.levelBonus}`, breakdownY + lineHeight * 2.2, '#ffffff');
+    this.createBreakdownLine('Death Penalty:', `-${breakdown.deathPenalty}`, breakdownY + lineHeight * 3.2, '#E24462');
+    this.createBreakdownLine('Time Penalty:', `-${breakdown.timePenalty}`, breakdownY + lineHeight * 4.2, '#F88909');
 
     // Stats
-    const statsY = breakdownY + lineHeight * 6;
+    const statsY = breakdownY + lineHeight * 5.8;
 
     this.add.text(GAME_WIDTH / 2, statsY, '--- Stats ---', {
-      fontSize: '14px',
-      color: '#888888',
-      fontFamily: 'Arial, sans-serif',
+      fontSize: font(FONT.HEADING),
+      color: '#aaaaaa',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.createStatLine('Levels Completed:', `${this.gameData.levels}`, statsY + lineHeight);
-    this.createStatLine('Deaths:', `${this.gameData.deaths}`, statsY + lineHeight * 2);
-    this.createStatLine('Time:', this.formatTime(this.gameData.time), statsY + lineHeight * 3);
+    this.createStatLine('Levels Completed:', `${this.gameData.levels}`, statsY + lineHeight * 1.2);
+    this.createStatLine('Deaths:', `${this.gameData.deaths}`, statsY + lineHeight * 2.2);
+    this.createStatLine('Time:', this.formatTime(this.gameData.time), statsY + lineHeight * 3.2);
 
     // Buttons
-    const buttonY = GAME_HEIGHT - 80;
+    const buttonY = GAME_HEIGHT * LAYOUT.BUTTON_Y;
 
-    // Play Again button
-    const playAgainBtn = this.add.text(GAME_WIDTH / 2 - 100, buttonY, '[ Play Again ]', {
-      fontSize: '18px',
-      color: '#00ff88',
-      fontFamily: 'Arial, sans-serif',
+    // Play Again button - white
+    const playAgainBtn = this.add.text(GAME_WIDTH / 2 - 110, buttonY, '[ Play Again ]', {
+      fontSize: font(FONT.BODY),
+      color: '#ffffff',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
     });
     playAgainBtn.setOrigin(0.5);
     playAgainBtn.setInteractive({ useHandCursor: true });
-    playAgainBtn.on('pointerover', () => playAgainBtn.setColor('#00ffaa'));
-    playAgainBtn.on('pointerout', () => playAgainBtn.setColor('#00ff88'));
+    playAgainBtn.on('pointerover', () => playAgainBtn.setAlpha(0.7));
+    playAgainBtn.on('pointerout', () => playAgainBtn.setAlpha(1));
     playAgainBtn.on('pointerdown', () => {
       this.scene.start('NameEntryScene');
     });
 
-    // Leaderboard button
-    const leaderboardBtn = this.add.text(GAME_WIDTH / 2 + 100, buttonY, '[ Leaderboard ]', {
-      fontSize: '18px',
-      color: '#4a9eff',
-      fontFamily: 'Arial, sans-serif',
+    // Leaderboard button - white
+    const leaderboardBtn = this.add.text(GAME_WIDTH / 2 + 110, buttonY, '[ Leaderboard ]', {
+      fontSize: font(FONT.BODY),
+      color: '#ffffff',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
     });
     leaderboardBtn.setOrigin(0.5);
     leaderboardBtn.setInteractive({ useHandCursor: true });
-    leaderboardBtn.on('pointerover', () => leaderboardBtn.setColor('#6ab8ff'));
-    leaderboardBtn.on('pointerout', () => leaderboardBtn.setColor('#4a9eff'));
+    leaderboardBtn.on('pointerover', () => leaderboardBtn.setAlpha(0.7));
+    leaderboardBtn.on('pointerout', () => leaderboardBtn.setAlpha(1));
     leaderboardBtn.on('pointerdown', () => {
       this.scene.start('LeaderboardScene', { fromGameOver: true });
     });
@@ -173,41 +182,88 @@ export class GameOverScene extends Phaser.Scene {
     }
 
     // Hint
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 30, 'Press ENTER to play again, L for leaderboard', {
-      fontSize: '12px',
-      color: '#666666',
-      fontFamily: 'Arial, sans-serif',
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT * LAYOUT.HINT_Y, 'Press ENTER to play again, L for leaderboard', {
+      fontSize: font(FONT.BODY),
+      color: '#888888',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
     }).setOrigin(0.5);
 
     // Fade in
     this.cameras.main.fadeIn(300, 0, 0, 0);
+
+    // Add entry to leaderboard (async)
+    await this.saveScore();
+  }
+
+  private async saveScore(): Promise<void> {
+    try {
+      const rank = await this.leaderboardManager.addEntry({
+        name: this.gameData.playerName,
+        score: this.gameData.score,
+        levels: this.gameData.levels,
+        deaths: this.gameData.deaths,
+        time: this.gameData.time,
+      });
+
+      // Update rank display
+      if (rank > 0) {
+        if (rank === 1) {
+          this.rankText.setText('NEW HIGH SCORE!');
+          this.rankText.setColor('#ffd700');
+          this.tweens.add({
+            targets: this.rankText,
+            scale: 1.1,
+            duration: 500,
+            yoyo: true,
+            repeat: -1,
+          });
+        } else {
+          this.rankText.setText(`#${rank} on Leaderboard!`);
+          this.rankText.setColor('#ffffff');
+        }
+      } else {
+        this.rankText.setText('Score saved!');
+        this.rankText.setColor('#888888');
+      }
+    } catch (error) {
+      console.error('Failed to save score:', error);
+      this.rankText.setText('Could not save score');
+      this.rankText.setColor('#ff4444');
+    }
   }
 
   private createBreakdownLine(label: string, value: string, y: number, color: string): void {
-    this.add.text(GAME_WIDTH / 2 - 100, y, label, {
-      fontSize: '14px',
+    const colOffset = GAME_WIDTH * 0.15; // 15% of screen width
+    this.add.text(GAME_WIDTH / 2 - colOffset, y, label, {
+      fontSize: font(FONT.BODY),
       color: '#aaaaaa',
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
     }).setOrigin(0, 0.5);
 
-    this.add.text(GAME_WIDTH / 2 + 100, y, value, {
-      fontSize: '14px',
+    this.add.text(GAME_WIDTH / 2 + colOffset, y, value, {
+      fontSize: font(FONT.BODY),
       color,
-      fontFamily: 'monospace',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
     }).setOrigin(1, 0.5);
   }
 
   private createStatLine(label: string, value: string, y: number): void {
-    this.add.text(GAME_WIDTH / 2 - 80, y, label, {
-      fontSize: '14px',
+    const colOffset = GAME_WIDTH * 0.15; // 15% of screen width
+    this.add.text(GAME_WIDTH / 2 - colOffset, y, label, {
+      fontSize: font(FONT.BODY),
       color: '#aaaaaa',
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
     }).setOrigin(0, 0.5);
 
-    this.add.text(GAME_WIDTH / 2 + 80, y, value, {
-      fontSize: '14px',
+    this.add.text(GAME_WIDTH / 2 + colOffset, y, value, {
+      fontSize: font(FONT.BODY),
       color: '#ffffff',
-      fontFamily: 'monospace',
+      fontFamily: JBMONO,
+      fontStyle: 'bold',
     }).setOrigin(1, 0.5);
   }
 
@@ -215,5 +271,49 @@ export class GameOverScene extends Phaser.Scene {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  private createSnow(): void {
+    const snowCount = 60;
+    for (let i = 0; i < snowCount; i++) {
+      const x = Math.random() * GAME_WIDTH;
+      const y = Math.random() * GAME_HEIGHT;
+      const size = 2 + Math.random() * 3;
+      const snowflake = this.add.rectangle(x, y, size, size, 0xffffff, 0.15 + Math.random() * 0.1);
+      snowflake.setDepth(1);
+      this.snowflakes.push(snowflake);
+      this.snowData.push({
+        vx: (Math.random() - 0.5) * 15,
+        vy: 20 + Math.random() * 30,
+        baseX: x,
+      });
+    }
+  }
+
+  private updateSnow(): void {
+    const dt = 0.016;
+    for (let i = 0; i < this.snowflakes.length; i++) {
+      const flake = this.snowflakes[i];
+      const data = this.snowData[i];
+
+      const drift = Math.sin(Date.now() * 0.001 + i) * 0.3;
+      const dx = data.vx * dt + drift;
+      const dy = data.vy * dt;
+
+      flake.x += dx;
+      flake.y += dy;
+
+      if (flake.y > GAME_HEIGHT + 10) {
+        flake.y = -10;
+        flake.x = Math.random() * GAME_WIDTH;
+        data.baseX = flake.x;
+      }
+      if (flake.x < -10) flake.x = GAME_WIDTH + 10;
+      if (flake.x > GAME_WIDTH + 10) flake.x = -10;
+    }
+  }
+
+  update(): void {
+    this.updateSnow();
   }
 }

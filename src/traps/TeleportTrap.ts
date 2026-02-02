@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BaseTrap, TrapConfig } from './BaseTrap';
 import { Player } from '../entities/Player';
+import { SIZE, sz } from '../config/gameConfig';
 
 export interface TeleportTrapConfig extends TrapConfig {
   targetX: number;
@@ -24,16 +25,19 @@ export class TeleportTrap extends BaseTrap {
     this.portal = scene.add.container(0, 0);
 
     // Outer ring
-    const outerRing = scene.add.circle(0, 0, 14, 0x9400d3, 0.6);
+    const outerRadius = sz(SIZE.TELEPORT_OUTER);
+    const outerRing = scene.add.circle(0, 0, outerRadius, 0x9400d3, 0.6);
     outerRing.setStrokeStyle(2, 0xba55d3);
     this.portal.add(outerRing);
 
     // Inner glow
-    const innerGlow = scene.add.circle(0, 0, 8, 0xda70d6, 0.8);
+    const innerRadius = sz(SIZE.TELEPORT_INNER);
+    const innerGlow = scene.add.circle(0, 0, innerRadius, 0xda70d6, 0.8);
     this.portal.add(innerGlow);
 
     // Center
-    const center = scene.add.circle(0, 0, 3, 0xffffff, 1);
+    const centerRadius = sz(SIZE.TELEPORT_CENTER);
+    const center = scene.add.circle(0, 0, centerRadius, 0xffffff, 1);
     this.portal.add(center);
 
     this.add(this.portal);
@@ -50,9 +54,11 @@ export class TeleportTrap extends BaseTrap {
 
     // Create target marker (exit point) - smaller indicator
     this.targetMarker = scene.add.container(this.targetX, this.targetY);
-    const exitRing = scene.add.circle(0, 0, 10, 0x9400d3, 0.4);
+    const exitOuterRadius = sz(SIZE.TELEPORT_EXIT_OUTER);
+    const exitRing = scene.add.circle(0, 0, exitOuterRadius, 0x9400d3, 0.4);
     exitRing.setStrokeStyle(2, 0xba55d3);
-    const exitCenter = scene.add.circle(0, 0, 4, 0xda70d6, 0.6);
+    const exitCenterRadius = sz(SIZE.TELEPORT_EXIT_CENTER);
+    const exitCenter = scene.add.circle(0, 0, exitCenterRadius, 0xda70d6, 0.6);
     this.targetMarker.add(exitRing);
     this.targetMarker.add(exitCenter);
     this.targetMarker.setDepth(1);
@@ -68,12 +74,13 @@ export class TeleportTrap extends BaseTrap {
     });
 
     // Create hitbox
+    const hitboxRadius = sz(SIZE.TELEPORT_HITBOX);
     this.hitbox = scene.physics.add.sprite(config.x, config.y, 'teleport');
     this.hitbox.setVisible(false);
     const body = this.hitbox.body as Phaser.Physics.Arcade.Body;
     body.setAllowGravity(false);
     body.setImmovable(true);
-    body.setCircle(12);
+    body.setCircle(hitboxRadius);
   }
 
   trigger(player: Player): void {
@@ -83,7 +90,8 @@ export class TeleportTrap extends BaseTrap {
     this.cooldown = true;
 
     // Visual effect at current position
-    const flashOut = this.trapScene.add.circle(player.x, player.y, 16, 0x9400d3, 0.9);
+    const flashRadius = sz(SIZE.TELEPORT_FLASH);
+    const flashOut = this.trapScene.add.circle(player.x, player.y, flashRadius, 0x9400d3, 0.9);
     this.trapScene.tweens.add({
       targets: flashOut,
       scale: 2.5,
@@ -96,7 +104,8 @@ export class TeleportTrap extends BaseTrap {
     player.teleportTo(this.targetX, this.targetY);
 
     // Visual effect at destination
-    const flashIn = this.trapScene.add.circle(this.targetX, this.targetY, 24, 0x9400d3, 0.9);
+    const flashInRadius = sz(SIZE.TELEPORT_FLASH_IN);
+    const flashIn = this.trapScene.add.circle(this.targetX, this.targetY, flashInRadius, 0x9400d3, 0.9);
     flashIn.setScale(2);
     this.trapScene.tweens.add({
       targets: flashIn,
@@ -114,6 +123,12 @@ export class TeleportTrap extends BaseTrap {
   }
 
   reset(): void {
+    // Kill any active tweens
+    this.trapScene.tweens.killTweensOf(this.portal);
+    if (this.targetMarker) {
+      this.trapScene.tweens.killTweensOf(this.targetMarker);
+    }
+
     this.isTriggered = false;
     this.cooldown = false;
   }

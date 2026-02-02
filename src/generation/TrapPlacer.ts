@@ -13,7 +13,14 @@ export type TrapType =
   | 'bounce'
   | 'fakefloor'
   | 'sawblade'
-  | 'ice';
+  | 'ice'
+  | 'fakegoal'
+  | 'wallofdeath'
+  | 'risinglava'
+  | 'mirrorenemy'
+  | 'fakespike'
+  | 'movinggoal'
+  | 'invertingroom';
 
 export interface TrapPlacement {
   type: TrapType;

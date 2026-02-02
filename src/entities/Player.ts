@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
-import { PLAYER_CONFIG, GAME_HEIGHT } from '../config/gameConfig';
+import { PLAYER_CONFIG, GAME_HEIGHT, SIZE, sz } from '../config/gameConfig';
+
+// Platform color for particles
+const PLATFORM_COLOR = 0x0a032f;
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -30,9 +33,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   // Particles
   private dustEmitter: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  private deathParticles: Phaser.GameObjects.Rectangle[] = [];
+  private particleCollider: Phaser.Physics.Arcade.Collider | null = null;
+
+  // Animation state
+  private currentAnim: string = 'kodee-idle';
+  private readonly SPRITE_SCALE = 0.38; // Scale sprite to ~60px for larger tiles
+
+  // Reference to platforms for particle collisions
+  private platformsGroup: Phaser.Physics.Arcade.StaticGroup | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, 'player');
+    // Use kodee-walk spritesheet as base texture
+    super(scene, x, y, 'kodee-walk');
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -41,7 +54,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.setCollideWorldBounds(false);
     this.setBounce(0);
-    this.setSize(PLAYER_CONFIG.size, PLAYER_CONFIG.size);
+
+    // Scale down the sprite and set hitbox
+    this.setScale(this.SPRITE_SCALE);
+    this.setSize(90, 152); // Hitbox size before scaling
+    this.setOffset(20, 0); // Center hitbox properly
 
     if (scene.input.keyboard) {
       this.cursors = scene.input.keyboard.createCursorKeys();
@@ -50,6 +67,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Create dust particle emitter
     this.createDustEmitter();
+
+    // Initial spawn effect - start invisible and gather particles
+    this.setAlpha(0);
+    this.canMove = false;
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    if (body) body.enable = false;
+
+    this.gatherParticles(x, y, () => {
+      this.setAlpha(1);
+      this.canMove = true;
+      if (body) body.enable = true;
+      this.play('kodee-idle');
+    });
   }
 
   private createDustEmitter(): void {
@@ -64,18 +94,202 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.dustEmitter.setDepth(1);
   }
 
+  setPlatforms(platforms: Phaser.Physics.Arcade.StaticGroup): void {
+    this.platformsGroup = platforms;
+  }
+
+  private explodeParticles(fromX: number, fromY: number): void {
+    // Clear any existing particles
+    this.clearDeathParticles();
+
+    const particleCount = 20;
+    const particleSize = sz(0.15);
+
+    const physicsParticles: Phaser.GameObjects.Rectangle[] = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      const particle = this.scene.add.rectangle(fromX, fromY, particleSize, particleSize, PLATFORM_COLOR);
+      particle.setDepth(50);
+
+      // Add physics to the particle
+      this.scene.physics.add.existing(particle);
+      const body = particle.body as Phaser.Physics.Arcade.Body;
+
+      // Random explosion direction
+      const angle = (i / particleCount) * Math.PI * 2 + Math.random() * 0.5;
+      const speed = 200 + Math.random() * 200;
+      const velocityX = Math.cos(angle) * speed;
+      const velocityY = Math.sin(angle) * speed - 250; // Bias upward
+
+      body.setVelocity(velocityX, velocityY);
+      body.setBounce(0.6, 0.4);
+      body.setGravityY(800);
+      body.setDrag(20, 0);
+      body.setAngularVelocity(Phaser.Math.Between(-400, 400));
+
+      this.deathParticles.push(particle);
+      physicsParticles.push(particle);
+    }
+
+    // Set up collision with platforms
+    if (this.platformsGroup && physicsParticles.length > 0) {
+      this.particleCollider = this.scene.physics.add.collider(physicsParticles, this.platformsGroup);
+    }
+  }
+
+  private gatherParticles(toX: number, toY: number, onComplete: () => void): void {
+    // Destroy collider first
+    if (this.particleCollider) {
+      this.particleCollider.destroy();
+      this.particleCollider = null;
+    }
+
+    // Gather existing particles
+    if (this.deathParticles.length > 0) {
+      let completedCount = 0;
+      const particleCount = this.deathParticles.length;
+
+      for (let i = 0; i < particleCount; i++) {
+        const particle = this.deathParticles[i];
+
+        // Disable physics
+        const body = particle.body as Phaser.Physics.Arcade.Body;
+        if (body) {
+          body.enable = false;
+        }
+
+        // Tween to target
+        this.scene.tweens.add({
+          targets: particle,
+          x: toX,
+          y: toY,
+          scale: 0,
+          rotation: 0,
+          duration: 300,
+          delay: i * 15,
+          ease: 'Cubic.easeIn',
+          onComplete: () => {
+            particle.destroy();
+            completedCount++;
+            if (completedCount >= particleCount) {
+              this.deathParticles = [];
+              onComplete();
+            }
+          },
+        });
+      }
+    } else {
+      // Create new particles for initial spawn
+      this.createAndGatherParticles(toX, toY, onComplete);
+    }
+  }
+
+  private createAndGatherParticles(toX: number, toY: number, onComplete: () => void): void {
+    const particleCount = 20;
+    const particleSize = sz(0.2); // Bigger particles
+    let completedCount = 0;
+
+    for (let i = 0; i < particleCount; i++) {
+      // Start particles scattered around the target
+      const angle = (i / particleCount) * Math.PI * 2;
+      const distance = 60 + Math.random() * 40;
+      const startX = toX + Math.cos(angle) * distance;
+      const startY = toY + Math.sin(angle) * distance;
+
+      const particle = this.scene.add.rectangle(startX, startY, particleSize, particleSize, PLATFORM_COLOR);
+      particle.setDepth(50);
+      particle.setScale(1);
+
+      this.deathParticles.push(particle);
+
+      // Move to target and shrink
+      this.scene.tweens.add({
+        targets: particle,
+        x: toX,
+        y: toY,
+        scale: 0,
+        duration: 350,
+        delay: i * 12,
+        ease: 'Cubic.easeIn',
+        onComplete: () => {
+          particle.destroy();
+          completedCount++;
+          if (completedCount >= particleCount) {
+            this.deathParticles = [];
+            onComplete();
+          }
+        },
+      });
+    }
+  }
+
+  private clearDeathParticles(): void {
+    // Destroy collider first
+    if (this.particleCollider) {
+      this.particleCollider.destroy();
+      this.particleCollider = null;
+    }
+
+    for (const particle of this.deathParticles) {
+      this.scene.tweens.killTweensOf(particle);
+      particle.destroy();
+    }
+    this.deathParticles = [];
+  }
+
   private emitDust(count: number = 5): void {
     if (this.dustEmitter) {
-      const groundY = this.gravityFlipped ? this.y - 12 : this.y + 12;
+      const dustOffset = sz(SIZE.DUST_OFFSET);
+      const groundY = this.gravityFlipped ? this.y - dustOffset : this.y + dustOffset;
       this.dustEmitter.setPosition(this.x, groundY);
       this.dustEmitter.explode(count);
     }
   }
 
+  private updateAnimation(onGround: boolean, velocityX: number, velocityY: number): void {
+    if (this.isDashing) return; // Don't change animation during dash
+
+    let newAnim = this.currentAnim;
+
+    if (!onGround) {
+      // In the air
+      if (velocityY < 0) {
+        // Going up (jumping) - note: in Phaser, negative Y is up
+        newAnim = this.gravityFlipped ? 'kodee-fall' : 'kodee-jump';
+      } else {
+        // Going down (falling)
+        newAnim = this.gravityFlipped ? 'kodee-jump' : 'kodee-fall';
+      }
+    } else {
+      // On ground
+      if (Math.abs(velocityX) > 10) {
+        newAnim = 'kodee-walk';
+      } else {
+        newAnim = 'kodee-idle';
+      }
+    }
+
+    // Only change animation if different
+    if (newAnim !== this.currentAnim) {
+      this.currentAnim = newAnim;
+      this.play(newAnim, true);
+    }
+
+    // Flip sprite based on direction
+    if (velocityX < -10) {
+      this.setFlipX(true);
+    } else if (velocityX > 10) {
+      this.setFlipX(false);
+    }
+  }
+
   update(): void {
     if (this.isDead || !this.canMove) return;
+    if (!this.scene || !this.scene.game) return;
 
     const body = this.body as Phaser.Physics.Arcade.Body;
+    if (!body) return;
+
     const delta = this.scene.game.loop.delta;
 
     // Track ground state for coyote time
@@ -166,6 +380,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
+    // Update animation based on current state
+    this.updateAnimation(onGround, body.velocity.x, body.velocity.y);
+
     // Check if fallen out of bounds
     if (this.y > GAME_HEIGHT + 50 || this.y < -50) {
       this.die();
@@ -182,9 +399,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setVelocityX(this.dashSpeed * this.dashDirection);
     this.setVelocityY(0);
 
-    // Visual effect - tint and scale
-    this.setTint(0x00ffff);
-    this.setScale(1.2, 0.8);
+    // Visual effect - tint and scale (Kotlin orange)
+    this.setTint(0xF88909);
+    this.setScale(this.SPRITE_SCALE * 1.3, this.SPRITE_SCALE * 0.8);
 
     // Create dash trail
     this.createDashTrail();
@@ -193,7 +410,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(this.dashDuration, () => {
       this.isDashing = false;
       this.clearTint();
-      this.setScale(1, 1);
+      this.setScale(this.SPRITE_SCALE);
     });
 
     // Cooldown
@@ -203,15 +420,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private createDashTrail(): void {
-    // Create 3 ghost images behind player
+    // Create 3 ghost images behind player (Kotlin gradient)
+    const trailColors = [0xF88909, 0xE24462, 0xB125EA];
+    const trailSize = sz(SIZE.DASH_TRAIL);
+    const trailSpacing = sz(0.33);
     for (let i = 1; i <= 3; i++) {
       const ghost = this.scene.add.rectangle(
-        this.x - (this.dashDirection * i * 15),
+        this.x - (this.dashDirection * i * trailSpacing),
         this.y,
-        PLAYER_CONFIG.size,
-        PLAYER_CONFIG.size,
-        0x00ffff,
-        0.5 - i * 0.15
+        trailSize,
+        trailSize,
+        trailColors[i - 1],
+        0.5 - i * 0.12
       );
       ghost.setDepth(0);
 
@@ -227,31 +447,45 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   die(): void {
     if (this.isDead) return;
 
+    const deathX = this.x;
+    const deathY = this.y;
+
     this.isDead = true;
     this.canMove = false;
     this.isDashing = false;
     this.clearTint();
-    this.setScale(1, 1);
+    this.setScale(this.SPRITE_SCALE);
     this.setAlpha(0);
+
+    // Disable physics body to prevent collisions while dead
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    if (body) {
+      body.enable = false;
+    }
+
+    // Create explosion particles
+    this.explodeParticles(deathX, deathY);
 
     // Death sound and effect
     if (this.scene.cache.audio.exists('death')) this.scene.sound.play('death', { volume: 0.6 });
     this.scene.cameras.main.shake(150, 0.03);
 
     // Notify scene of death with position for sparkles
-    this.scene.events.emit('playerDeath', { x: this.x, y: this.y });
+    this.scene.events.emit('playerDeath', { x: deathX, y: deathY });
 
-    // Respawn after delay
+    // Respawn after delay - particles will gather
     this.scene.time.delayedCall(800, () => {
       this.respawn();
     });
   }
 
   respawn(): void {
+    // Move player to respawn point (still invisible)
     this.setPosition(this.respawnPoint.x, this.respawnPoint.y);
     this.setVelocity(0, 0);
-    this.isDead = false;
-    this.canMove = true;
+    this.setAlpha(0);
+
+    // Reset state but keep player inactive until particles gather
     this.isDashing = false;
     this.canDash = true;
     this.gravityFlipped = false;
@@ -259,10 +493,26 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.iceVelocity = 0;
     this.setGravityY(0);
     this.setFlipY(false);
-    this.setAlpha(1);
+    this.setFlipX(false);
     this.clearTint();
-    this.setScale(1, 1);
-    if (this.scene.cache.audio.exists('spawn')) this.scene.sound.play('spawn', { volume: 0.5 });
+    this.setScale(this.SPRITE_SCALE);
+    this.currentAnim = 'kodee-idle';
+
+    // Gather particles to respawn point, then show player
+    this.gatherParticles(this.respawnPoint.x, this.respawnPoint.y, () => {
+      this.isDead = false;
+      this.canMove = true;
+      this.setAlpha(1);
+      this.play('kodee-idle');
+
+      // Re-enable physics body
+      const body = this.body as Phaser.Physics.Arcade.Body;
+      if (body) {
+        body.enable = true;
+      }
+
+      if (this.scene.cache.audio.exists('spawn')) this.scene.sound.play('spawn', { volume: 0.5 });
+    });
   }
 
   setRespawnPoint(x: number, y: number): void {
@@ -310,6 +560,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   freeze(): void {
     this.canMove = false;
     this.setVelocity(0, 0);
+    this.play('kodee-idle');
   }
 
   unfreeze(): void {
@@ -320,6 +571,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.dustEmitter) {
       this.dustEmitter.destroy();
     }
+    this.clearDeathParticles();
     super.destroy(fromScene);
   }
 }
