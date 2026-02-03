@@ -1,65 +1,31 @@
 import Phaser from 'phaser';
 import { BaseTrap, TrapConfig } from './BaseTrap';
-import { TILE_SIZE, SIZE, sz } from '../config/gameConfig';
+import { TILE_SIZE } from '../config/gameConfig';
 
 export class FakeGoal extends BaseTrap {
-  private door: Phaser.GameObjects.Container;
-  private frame: Phaser.GameObjects.Rectangle;
-  private doorBody: Phaser.GameObjects.Rectangle;
-  private shine: Phaser.GameObjects.Rectangle;
-  private handle: Phaser.GameObjects.Arc;
-  private glow: Phaser.GameObjects.Rectangle;
+  private goalSprite: Phaser.GameObjects.Sprite;
   private inCooldown: boolean = false;
   private cooldownTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor(scene: Phaser.Scene, config: TrapConfig) {
     super(scene, config);
 
-    // Create door container
-    this.door = scene.add.container(0, 0);
+    // Use the same 'goal' texture as the real Goal
+    // Apply Y offset to match real Goal positioning (real Goal uses -TILE_SIZE/2 offset)
+    this.goalSprite = scene.add.sprite(0, -TILE_SIZE / 2, 'goal');
+    this.add(this.goalSprite);
 
-    // Door frame (looks identical to real goal)
-    const padding = sz(SIZE.GOAL_PADDING);
-    this.frame = scene.add.rectangle(0, 0, TILE_SIZE, TILE_SIZE * 1.5, 0x8b7355);
-    this.frame.setStrokeStyle(2, 0x6b5335);
-    this.door.add(this.frame);
-
-    // Door body (golden like real goal)
-    this.doorBody = scene.add.rectangle(0, 0, TILE_SIZE - padding, TILE_SIZE * 1.5 - padding, 0xffd700);
-    this.door.add(this.doorBody);
-
-    // Door shine
-    const shineWidth = sz(SIZE.GOAL_SHINE_WIDTH);
-    const shineOffset = sz(SIZE.GOAL_SHINE_OFFSET);
-    this.shine = scene.add.rectangle(-shineOffset, 0, shineWidth, TILE_SIZE * 1.2, 0xffec8b);
-    this.door.add(this.shine);
-
-    // Door handle
-    const handleOffsetX = sz(SIZE.GOAL_HANDLE_OFFSET_X);
-    const handleOffsetY = sz(SIZE.GOAL_HANDLE_OFFSET_Y);
-    const handleRadius = sz(SIZE.GOAL_HANDLE_RADIUS);
-    this.handle = scene.add.circle(handleOffsetX, handleOffsetY, handleRadius, 0xdaa520);
-    this.door.add(this.handle);
-
-    // Glow effect (same as real goal)
-    this.glow = scene.add.rectangle(0, 0, TILE_SIZE + padding, TILE_SIZE * 1.5 + padding, 0xffd700, 0.3);
-    this.door.add(this.glow);
-
-    // Pulsing glow (same as real goal)
+    // Same pulsing animation as the real Goal
     scene.tweens.add({
-      targets: this.glow,
-      alpha: 0.1,
-      scaleX: 1.1,
-      scaleY: 1.1,
-      duration: 800,
+      targets: this.goalSprite,
+      alpha: 0.7,
+      duration: 500,
       yoyo: true,
       repeat: -1,
     });
 
-    this.add(this.door);
-
-    // Create hitbox
-    this.hitbox = scene.physics.add.sprite(config.x, config.y, 'goal');
+    // Create hitbox matching the goal sprite size (with same Y offset)
+    this.hitbox = scene.physics.add.sprite(config.x, config.y - TILE_SIZE / 2, 'goal');
     this.hitbox.setVisible(false);
     this.hitbox.setSize(TILE_SIZE - 4, TILE_SIZE * 1.5 - 4);
     const body = this.hitbox.body as Phaser.Physics.Arcade.Body;
@@ -78,12 +44,8 @@ export class FakeGoal extends BaseTrap {
     // Reveal it's fake with a red flash
     this.trapScene.cameras.main.flash(200, 255, 0, 0);
 
-    // Hide door instantly (no tween to avoid timing issues with reset)
-    this.frame.setAlpha(0);
-    this.doorBody.setAlpha(0);
-    this.shine.setAlpha(0);
-    this.handle.setAlpha(0);
-    this.glow.setAlpha(0);
+    // Hide the fake goal instantly
+    this.goalSprite.setAlpha(0);
   }
 
   reset(): void {
@@ -93,33 +55,21 @@ export class FakeGoal extends BaseTrap {
       this.cooldownTimer = null;
     }
 
-    // Kill glow animation tween
-    this.trapScene.tweens.killTweensOf(this.glow);
+    // Kill animation tween
+    this.trapScene.tweens.killTweensOf(this.goalSprite);
 
     this.isTriggered = false;
     this.inCooldown = true; // Start cooldown to prevent immediate re-trigger
 
-    // Restore all door elements to full visibility
-    this.frame.setAlpha(1);
-    this.frame.setVisible(true);
-    this.doorBody.setAlpha(1);
-    this.doorBody.setVisible(true);
-    this.shine.setAlpha(1);
-    this.shine.setVisible(true);
-    this.handle.setAlpha(1);
-    this.handle.setVisible(true);
+    // Restore the sprite to full visibility
+    this.goalSprite.setAlpha(1);
+    this.goalSprite.setVisible(true);
 
-    // Glow should be slightly transparent
-    this.glow.setAlpha(0.3);
-    this.glow.setScale(1);
-
-    // Restart glow animation
+    // Restart pulsing animation (same as real Goal)
     this.trapScene.tweens.add({
-      targets: this.glow,
-      alpha: 0.1,
-      scaleX: 1.1,
-      scaleY: 1.1,
-      duration: 800,
+      targets: this.goalSprite,
+      alpha: 0.7,
+      duration: 500,
       yoyo: true,
       repeat: -1,
     });
@@ -128,5 +78,13 @@ export class FakeGoal extends BaseTrap {
     this.cooldownTimer = this.trapScene.time.delayedCall(500, () => {
       this.inCooldown = false;
     });
+  }
+
+  destroy(fromScene?: boolean): void {
+    if (this.cooldownTimer) {
+      this.cooldownTimer.remove();
+    }
+    this.trapScene.tweens.killTweensOf(this.goalSprite);
+    super.destroy(fromScene);
   }
 }

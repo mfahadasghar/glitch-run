@@ -137,6 +137,14 @@ export class Coin extends Phaser.GameObjects.Container {
   }
 
   destroy(fromScene?: boolean): void {
+    // Kill all tweens to prevent memory leaks
+    this.coinScene.tweens.killTweensOf(this);
+    this.coinScene.tweens.killTweensOf(this.glowGraphic);
+    this.coinScene.tweens.killTweensOf(this.coinGraphic);
+    if (this.floatingTween) {
+      this.floatingTween.stop();
+      this.floatingTween = null;
+    }
     if (this.hitbox) {
       this.hitbox.destroy();
     }

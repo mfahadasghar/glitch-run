@@ -70,6 +70,7 @@ export class GameScene extends Phaser.Scene {
   private risingLava: RisingLava | null = null;
   private mirrorEnemy: MirrorEnemy | null = null;
   private fakeSpikes: FakeSpike[] = [];
+  private fakeSpikeZones: Phaser.GameObjects.Zone[] = [];
   private movingGoals: MovingGoal[] = [];
   private invertingRoom: InvertingRoom | null = null;
 
@@ -471,6 +472,12 @@ export class GameScene extends Phaser.Scene {
       fakeSpike.destroy();
     }
     this.fakeSpikes = [];
+
+    // Destroy fake spike zones
+    for (const zone of this.fakeSpikeZones) {
+      zone.destroy();
+    }
+    this.fakeSpikeZones = [];
 
     // Destroy moving goals
     for (const movingGoal of this.movingGoals) {
@@ -1047,6 +1054,7 @@ export class GameScene extends Phaser.Scene {
       this.physics.add.overlap(this.player, zone, () => {
         fakeSpike.reveal();
       });
+      this.fakeSpikeZones.push(zone);
     }
 
     // Moving goal collisions

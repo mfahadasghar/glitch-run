@@ -21,7 +21,6 @@ type PlaceableType =
   | 'ice'
   | 'coin'
   | 'fakegoal'
-  | 'mirrorenemy'
   | 'fakespike'
   | 'movinggoal'
   | 'start'
@@ -88,12 +87,15 @@ export class LevelEditorScene extends Phaser.Scene {
   private wallOfDeathEnabled: boolean = false;
   private risingLavaEnabled: boolean = false;
   private invertingRoomEnabled: boolean = false;
+  private mirrorEnemyEnabled: boolean = false;
   private wallOfDeathButton!: Phaser.GameObjects.Rectangle;
   private risingLavaButton!: Phaser.GameObjects.Rectangle;
   private invertingRoomButton!: Phaser.GameObjects.Rectangle;
+  private mirrorEnemyButton!: Phaser.GameObjects.Rectangle;
   private wallOfDeathLabel!: Phaser.GameObjects.Text;
   private risingLavaLabel!: Phaser.GameObjects.Text;
   private invertingRoomLabel!: Phaser.GameObjects.Text;
+  private mirrorEnemyLabel!: Phaser.GameObjects.Text;
   private isDraggingToolbar: boolean = false;
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
@@ -269,7 +271,6 @@ export class LevelEditorScene extends Phaser.Scene {
       { type: 'ice', label: 'ICE' },
       { type: 'coin', label: 'COIN' },
       { type: 'fakegoal', label: 'F.GOAL' },
-      { type: 'mirrorenemy', label: 'MIRROR' },
       { type: 'fakespike', label: 'F.SPIKE' },
       { type: 'movinggoal', label: 'M.GOAL' },
       { type: 'start', label: 'START' },
@@ -444,10 +445,10 @@ export class LevelEditorScene extends Phaser.Scene {
 
     this.toolbarContainer.add([this.risingLavaButton, this.risingLavaLabel]);
 
-    // Inverting Room toggle (second row)
+    // Inverting Room toggle (second row, left)
     const toggleY2 = toggleY + toggleBtnHeight + 8;
     this.invertingRoomButton = this.add.rectangle(
-      toolbarWidth / 2,
+      toolbarWidth / 4,
       toggleY2 + toggleBtnHeight / 2,
       toggleBtnWidth,
       toggleBtnHeight,
@@ -456,7 +457,7 @@ export class LevelEditorScene extends Phaser.Scene {
     this.invertingRoomButton.setStrokeStyle(2, 0x3b1fad);
     this.invertingRoomButton.setInteractive({ useHandCursor: true });
 
-    this.invertingRoomLabel = this.add.text(toolbarWidth / 2, toggleY2 + toggleBtnHeight / 2, 'FLIP: OFF', {
+    this.invertingRoomLabel = this.add.text(toolbarWidth / 4, toggleY2 + toggleBtnHeight / 2, 'FLIP: OFF', {
       fontSize: font(FONT.CAPTION),
       color: '#888888',
       fontFamily: JBMONO,
@@ -475,6 +476,37 @@ export class LevelEditorScene extends Phaser.Scene {
     });
 
     this.toolbarContainer.add([this.invertingRoomButton, this.invertingRoomLabel]);
+
+    // Mirror Enemy toggle (second row, right)
+    this.mirrorEnemyButton = this.add.rectangle(
+      toolbarWidth * 3 / 4,
+      toggleY2 + toggleBtnHeight / 2,
+      toggleBtnWidth,
+      toggleBtnHeight,
+      0x0a032f
+    );
+    this.mirrorEnemyButton.setStrokeStyle(2, 0x3b1fad);
+    this.mirrorEnemyButton.setInteractive({ useHandCursor: true });
+
+    this.mirrorEnemyLabel = this.add.text(toolbarWidth * 3 / 4, toggleY2 + toggleBtnHeight / 2, 'MIRROR: OFF', {
+      fontSize: font(FONT.CAPTION),
+      color: '#888888',
+      fontFamily: JBMONO,
+    });
+    this.mirrorEnemyLabel.setOrigin(0.5);
+
+    this.mirrorEnemyButton.on('pointerdown', () => {
+      this.isClickOnUI = true;
+      this.mirrorEnemyEnabled = !this.mirrorEnemyEnabled;
+      this.updateToggleButton(
+        this.mirrorEnemyButton,
+        this.mirrorEnemyLabel,
+        'MIRROR',
+        this.mirrorEnemyEnabled
+      );
+    });
+
+    this.toolbarContainer.add([this.mirrorEnemyButton, this.mirrorEnemyLabel]);
   }
 
   private updateToggleButton(
@@ -1154,25 +1186,14 @@ export class LevelEditorScene extends Phaser.Scene {
         break;
 
       case 'fakegoal':
+        // Match the real goal marker size but with red border to show it's fake
         const fakeGoalContainer = this.add.container(x, y);
-        const fakeGoalDoor = this.add.rectangle(0, 0, TILE_SIZE - 4, TILE_SIZE * 1.5 - 4, 0xffd700);
-        fakeGoalDoor.setStrokeStyle(3, 0xff0000);
-        const fakeGoalX = this.add.text(0, 0, 'X', { fontSize: `${TILE_SIZE * 0.7}px`, color: '#ff0000', fontStyle: 'bold' });
-        fakeGoalX.setOrigin(0.5);
-        fakeGoalContainer.add([fakeGoalDoor, fakeGoalX]);
+        const fakeGoalDoor = this.add.rectangle(0, 0, TILE_SIZE * 0.55, TILE_SIZE * 0.7, 0xffd700);
+        fakeGoalDoor.setStrokeStyle(2, 0xff0000); // Red border to indicate fake
+        const fakeGoalLabel = this.add.text(0, -TILE_SIZE * 0.5, 'FAKE', { fontSize: `${TILE_SIZE * 0.25}px`, color: '#ff0000' });
+        fakeGoalLabel.setOrigin(0.5);
+        fakeGoalContainer.add([fakeGoalDoor, fakeGoalLabel]);
         visual = fakeGoalContainer;
-        break;
-
-      case 'mirrorenemy':
-        const mirrorContainer = this.add.container(x, y);
-        const mirrorSize = TILE_SIZE * 0.6;
-        const mirrorBody = this.add.rectangle(0, 0, mirrorSize, mirrorSize, 0x000000, 0.8);
-        mirrorBody.setStrokeStyle(3, 0xff0000);
-        const eyeSize = TILE_SIZE * 0.1;
-        const mirrorEyeL = this.add.rectangle(-mirrorSize * 0.2, -mirrorSize * 0.1, eyeSize, eyeSize, 0xff0000);
-        const mirrorEyeR = this.add.rectangle(mirrorSize * 0.2, -mirrorSize * 0.1, eyeSize, eyeSize, 0xff0000);
-        mirrorContainer.add([mirrorBody, mirrorEyeL, mirrorEyeR]);
-        visual = mirrorContainer;
         break;
 
       case 'fakespike': {
@@ -1328,6 +1349,16 @@ export class LevelEditorScene extends Phaser.Scene {
       });
     }
 
+    // Add mirror enemy if enabled (position at goal)
+    if (this.mirrorEnemyEnabled) {
+      traps.push({
+        type: 'mirrorenemy',
+        x: this.goalPos.x,
+        y: this.goalPos.y,
+        config: {},
+      });
+    }
+
     return {
       name: this.levelName,
       platforms,
@@ -1348,6 +1379,7 @@ export class LevelEditorScene extends Phaser.Scene {
     this.wallOfDeathEnabled = false;
     this.risingLavaEnabled = false;
     this.invertingRoomEnabled = false;
+    this.mirrorEnemyEnabled = false;
 
     this.levelName = data.name;
     this.levelNameText.setText(`Level: ${this.levelName}`);
@@ -1378,6 +1410,11 @@ export class LevelEditorScene extends Phaser.Scene {
       if (trap.type === 'invertingroom') {
         this.invertingRoomEnabled = true;
         this.updateToggleButton(this.invertingRoomButton, this.invertingRoomLabel, 'FLIP', true);
+        continue;
+      }
+      if (trap.type === 'mirrorenemy') {
+        this.mirrorEnemyEnabled = true;
+        this.updateToggleButton(this.mirrorEnemyButton, this.mirrorEnemyLabel, 'MIRROR', true);
         continue;
       }
 
@@ -1460,9 +1497,11 @@ export class LevelEditorScene extends Phaser.Scene {
     this.wallOfDeathEnabled = false;
     this.risingLavaEnabled = false;
     this.invertingRoomEnabled = false;
+    this.mirrorEnemyEnabled = false;
     this.updateToggleButton(this.wallOfDeathButton, this.wallOfDeathLabel, 'WALL', false);
     this.updateToggleButton(this.risingLavaButton, this.risingLavaLabel, 'LAVA', false);
     this.updateToggleButton(this.invertingRoomButton, this.invertingRoomLabel, 'FLIP', false);
+    this.updateToggleButton(this.mirrorEnemyButton, this.mirrorEnemyLabel, 'MIRROR', false);
 
     // Recreate default layout
     this.createDefaultLayout();
