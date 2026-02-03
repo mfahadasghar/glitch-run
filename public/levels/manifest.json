@@ -1,5 +1,5 @@
 {
-  "totalLevels": 10,
+  "totalLevels": 20,
   "levels": [
     "level1.json",
     "level2.json",
@@ -10,6 +10,14 @@
     "level7.json",
     "level8.json",
     "level9.json",
-    "level10.json"
+    "level10.json",
+    "level11.json",
+    "level12.json",
+    "level13.json",
+    "level14.json",
+    "level15.json",
+    "level16.json",
+    "level17.json",
+    "level18.json"
   ]
 }
