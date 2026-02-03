@@ -448,10 +448,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   die(): void {
     if (this.isDead || this.isFrozen) return;
 
+    // Set isDead immediately to prevent multiple death triggers
+    this.isDead = true;
+
     const deathX = this.x;
     const deathY = this.y;
-
-    this.isDead = true;
     this.canMove = false;
     this.isDashing = false;
     this.clearTint();

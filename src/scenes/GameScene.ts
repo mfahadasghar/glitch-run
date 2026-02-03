@@ -47,6 +47,7 @@ export class GameScene extends Phaser.Scene {
   private levelLoader!: LevelLoader;
   private playerName: string = 'PLAYER';
   private levelTransitioning: boolean = false;
+  private deathProcessed: boolean = false;
   private isTestMode: boolean = false;
   private isLibraryMode: boolean = false;
   private libraryLevelId: string | null = null;
@@ -99,6 +100,7 @@ export class GameScene extends Phaser.Scene {
     this.isLibraryMode = data.libraryMode || false;
     this.libraryLevelId = data.levelId || null;
     this.levelTransitioning = false;
+    this.deathProcessed = false;
 
     // Get library level from registry if in library mode
     if (this.isLibraryMode) {
@@ -1216,8 +1218,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onPlayerDeath(_data?: { x: number; y: number }): void {
+    // Prevent counting the same death multiple times
+    if (this.deathProcessed) return;
+    this.deathProcessed = true;
+
     this.scoreManager.addDeath();
     this.deathText.setText(`Deaths: ${this.scoreManager.getDeaths()}`);
+
+    // Reset the flag when player respawns (after 1 second to be safe)
+    this.time.delayedCall(1000, () => {
+      this.deathProcessed = false;
+    });
     this.updateComboUI();
 
     // Reset all traps to initial state
