@@ -13,6 +13,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private canMove: boolean = true;
   private onIce: boolean = false;
   private iceVelocity: number = 0;
+  private isFrozen: boolean = false;
 
   // Coyote time - allows jump shortly after leaving platform
   private coyoteTime: number = 100; // ms
@@ -445,7 +446,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   die(): void {
-    if (this.isDead) return;
+    if (this.isDead || this.isFrozen) return;
 
     const deathX = this.x;
     const deathY = this.y;
@@ -501,6 +502,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Gather particles to respawn point, then show player
     this.gatherParticles(this.respawnPoint.x, this.respawnPoint.y, () => {
       this.isDead = false;
+      this.isFrozen = false;
       this.canMove = true;
       this.setAlpha(1);
       this.play('kodee-idle');
@@ -558,13 +560,27 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   freeze(): void {
+    this.isFrozen = true;
     this.canMove = false;
     this.setVelocity(0, 0);
     this.play('kodee-idle');
+
+    // Disable physics body to prevent any further physics interactions
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    if (body) {
+      body.enable = false;
+    }
   }
 
   unfreeze(): void {
+    this.isFrozen = false;
     this.canMove = true;
+
+    // Re-enable physics body
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    if (body) {
+      body.enable = true;
+    }
   }
 
   destroy(fromScene?: boolean): void {

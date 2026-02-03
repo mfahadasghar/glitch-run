@@ -1,0 +1,238 @@
+{
+  "name": "BE QUICK",
+  "platforms": [
+    [
+      0,
+      15
+    ],
+    [
+      1,
+      15
+    ],
+    [
+      2,
+      15
+    ],
+    [
+      3,
+      15
+    ],
+    [
+      28,
+      15
+    ],
+    [
+      29,
+      15
+    ],
+    [
+      30,
+      15
+    ],
+    [
+      31,
+      15
+    ],
+    [
+      0,
+      16
+    ],
+    [
+      1,
+      16
+    ],
+    [
+      2,
+      16
+    ],
+    [
+      3,
+      16
+    ],
+    [
+      28,
+      16
+    ],
+    [
+      29,
+      16
+    ],
+    [
+      30,
+      16
+    ],
+    [
+      31,
+      16
+    ],
+    [
+      0,
+      17
+    ],
+    [
+      1,
+      17
+    ],
+    [
+      2,
+      17
+    ],
+    [
+      3,
+      17
+    ],
+    [
+      28,
+      17
+    ],
+    [
+      29,
+      17
+    ],
+    [
+      30,
+      17
+    ],
+    [
+      31,
+      17
+    ],
+    [
+      27,
+      15
+    ],
+    [
+      27,
+      16
+    ],
+    [
+      27,
+      17
+    ]
+  ],
+  "traps": [
+    {
+      "type": "collapsing",
+      "x": 7,
+      "y": 11
+    },
+    {
+      "type": "collapsing",
+      "x": 9,
+      "y": 9
+    },
+    {
+      "type": "collapsing",
+      "x": 5,
+      "y": 13
+    },
+    {
+      "type": "collapsing",
+      "x": 9,
+      "y": 13
+    },
+    {
+      "type": "collapsing",
+      "x": 11,
+      "y": 11
+    },
+    {
+      "type": "collapsing",
+      "x": 13,
+      "y": 13
+    },
+    {
+      "type": "collapsing",
+      "x": 17,
+      "y": 13
+    },
+    {
+      "type": "collapsing",
+      "x": 15,
+      "y": 11
+    },
+    {
+      "type": "collapsing",
+      "x": 13,
+      "y": 9
+    },
+    {
+      "type": "collapsing",
+      "x": 11,
+      "y": 7
+    },
+    {
+      "type": "collapsing",
+      "x": 13,
+      "y": 5
+    },
+    {
+      "type": "collapsing",
+      "x": 15,
+      "y": 7
+    },
+    {
+      "type": "collapsing",
+      "x": 17,
+      "y": 9
+    },
+    {
+      "type": "collapsing",
+      "x": 19,
+      "y": 11
+    },
+    {
+      "type": "collapsing",
+      "x": 21,
+      "y": 13
+    },
+    {
+      "type": "collapsing",
+      "x": 25,
+      "y": 13
+    },
+    {
+      "type": "collapsing",
+      "x": 23,
+      "y": 11
+    },
+    {
+      "type": "collapsing",
+      "x": 21,
+      "y": 9
+    },
+    {
+      "type": "collapsing",
+      "x": 19,
+      "y": 7
+    },
+    {
+      "type": "collapsing",
+      "x": 17,
+      "y": 5
+    },
+    {
+      "type": "collapsing",
+      "x": 15,
+      "y": 3
+    },
+    {
+      "type": "risinglava",
+      "x": 0,
+      "y": 0,
+      "config": {
+        "speed": 30,
+        "delay": 3000
+      }
+    }
+  ],
+  "start": {
+    "x": 2,
+    "y": 14
+  },
+  "goal": {
+    "x": 15,
+    "y": 1
+  },
+  "coins": []
+}
